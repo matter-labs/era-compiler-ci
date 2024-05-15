@@ -41,7 +41,7 @@ jobs:
           path: llvm
 
       - name: Build LLVM
-        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@aba-cpr-1691-set-up-a-pipeline-to-apply-all-ci-changes-to-all-repos
+        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
           extra-args: "\\-DLLVM_ENABLE_WERROR=On \\-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
           enable-tests: true
