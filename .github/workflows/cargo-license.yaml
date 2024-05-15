@@ -1,0 +1,14 @@
+name: Cargo license check
+
+on: workflow_call
+
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check licenses
+        uses: EmbarkStudios/cargo-deny-action@v1
