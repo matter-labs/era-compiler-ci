@@ -89,7 +89,7 @@ runs:
         append-timestamp: false
         max-size: "2G"
         verbose: 2
-        save: true # ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+        save: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
 
     # CCACHE_BASEDIR, CCACHE_NOHASHDIR, and CCACHE_COMPILERCHECK
     # are allowing to cache compiler output across different
