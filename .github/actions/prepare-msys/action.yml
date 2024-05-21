@@ -7,6 +7,7 @@ runs:
     uses: msys2/setup-msys2@v2
     with:
       path-type: inherit # Important to correctly update PATH
+      update: true
       install: >-
         base-devel
         git
@@ -17,6 +18,7 @@ runs:
         mingw-w64-x86_64-cmake
         mingw-w64-x86_64-gcc
         mingw-w64-x86_64-gcc-libs
+        mingw-w64-x86_64-boost
 
   - name: Prepare env
     shell: 'msys2 {0}'
