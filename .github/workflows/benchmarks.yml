@@ -6,7 +6,7 @@ on:
       llvm_build_type:
         type: string
         description: "LLVM build type: debug | release"
-        required: true
+        required: false
         default: "release"
       compiler_tester_reference_branch:
         type: string
@@ -38,11 +38,26 @@ on:
         description: "Path filter for compiler-llvm benchmarks"
         required: false
         default: ""
-
-
-concurrency:
-  group: ${{ github.repository_id }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+      ccache-key-type:
+        type: string
+        required: false
+        default: 'dynamic'
+        description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
+      compiler-tester-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-tester'
+        description: 'Compiler tester repository to use. Required for forks testing.'
+      compiler-llvm-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-llvm'
+        description: 'Compiler LLVM repository to use. Required for forks testing.'
+      custom-solc-run-id:
+        type: string
+        required: false
+        default: ''
+        description: 'run id of custom zksync solc artifact to download.'
 
 jobs:
   benchmarks:
@@ -70,7 +85,7 @@ jobs:
       - name: Checkout compiler-tester
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/era-compiler-tester
+          repository: ${{ inputs.compiler-tester-repo }}
           ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
           submodules: recursive
 
@@ -78,14 +93,19 @@ jobs:
         if: steps.define-branches.outputs.llvm-branch != ''
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/era-compiler-llvm
+          repository: ${{ inputs.compiler-llvm-repo }}
           ref: ${{ steps.define-branches.outputs.llvm-branch }}
           path: llvm
 
+      # An issue prevents to correctly use the same version of composite actions from `workflow_call`
+      # https://github.com/actions/toolkit/issues/1264
+      # for now, it will always be taken from the latest main
       - name: Build LLVM
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
           clone-llvm: ${{ steps.define-branches.outputs.llvm-branch == '' && 'true' || 'false' }}
+          enable-assertions: true
+          ccache-key-type: ${{ inputs.ccache-key-type }}
 
       - name: Build compiler-tester
         run: cargo build --verbose --release --bin 'compiler-tester'
@@ -101,13 +121,28 @@ jobs:
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
             --target-dir './target-zkvyper/'
 
+      - name: Download custom solc
+        if: inputs.custom-solc-run-id != '' && matrix.type == 'candidate'
+        uses: actions/download-artifact@v4
+        with:
+          path: ./solc-bin/
+          run-id: ${{ inputs.custom-solc-run-id }}
+          merge-multiple: true
+
+      - name: Prepare custom solc
+        if: inputs.custom-solc-run-id != '' && matrix.type == 'candidate'
+        run: |
+          chmod a+x ./solc-bin/solc*
+          echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
+          echo $(./solc-bin/solc* --version)
+
       - name: Run benchmarks
         run: |
           ./target/release/compiler-tester \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
-            --mode=${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }} \
+            --mode='${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}' \
             --benchmark=${{ matrix.type }}.json
 
       - uses: actions/upload-artifact@v4
@@ -127,8 +162,8 @@ jobs:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/era-compiler-tester
-          ref: ${{ inputs.compiler_tester_candidate_branch || github.event.repository.default_branch }}
+          repository: ${{ inputs.compiler-tester-repo }}
+          ref: ${{ inputs.compiler_tester_candidate_branch || 'main' }}
           submodules: recursive
 
       - uses: actions/download-artifact@v4
