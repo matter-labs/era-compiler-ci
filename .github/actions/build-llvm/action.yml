@@ -40,6 +40,10 @@ inputs:
     description: 'Github Actions cache key for CCache.'
     required: false
     default: ''
+  ccache-key-type:
+    description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
+    required: false
+    default: 'dynamic'
 runs:
   using: "composite"
   steps:
@@ -65,9 +69,13 @@ runs:
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
       id: ccache-key
       run: |
-        LLVM_BRANCH="$(git -C ./llvm rev-parse --abbrev-ref HEAD)"
-        LLVM_SHORT_SHA="$(git -C ./llvm rev-parse --short HEAD)"
-        echo "key=llvm-${LLVM_BRANCH}-${LLVM_SHORT_SHA}-${{ runner.os }}-${{ runner.arch }}" | tee -a "${GITHUB_OUTPUT}"
+        if [ ${{ inputs.ccache-key-type}} = static ]; then
+          echo "key=llvm-$(date +'%Y-%m')" | tee -a "${GITHUB_OUTPUT}"
+        else
+          LLVM_BRANCH="$(git -C ./llvm rev-parse --abbrev-ref HEAD)"
+          LLVM_SHORT_SHA="$(git -C ./llvm rev-parse --short HEAD)"
+          echo "key=llvm-${LLVM_BRANCH}-${LLVM_SHORT_SHA}-${{ runner.os }}-${{ runner.arch }}" | tee -a "${GITHUB_OUTPUT}"
+        fi
 
     # CCache action requires `apt update`
     # to be executed before it for Linux Docker jobs. See:
