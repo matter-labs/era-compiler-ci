@@ -44,6 +44,12 @@ inputs:
     description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
     required: false
     default: 'dynamic'
+  save-ccache:
+    description: 'Whether to save ccache after the build.'
+    required: false
+    default: 'false'
+
+
 runs:
   using: "composite"
   steps:
@@ -85,6 +91,16 @@ runs:
       shell: 'bash'
       run: apt update
 
+    - name: Define ccache save key
+      id: ccache-save
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: |
+        if [ '${{ inputs.save-ccache }}' = 'true' ]; then
+          echo "save=true" | tee -a "${GITHUB_OUTPUT}"
+        else
+          echo "save=${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}" | tee -a "${GITHUB_OUTPUT}"
+        fi
+
     - name: Set up compiler cache
       uses: hendrikmuhs/ccache-action@v1.2
       env:
@@ -97,7 +113,7 @@ runs:
         append-timestamp: false
         max-size: "2G"
         verbose: 2
-        save: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+        save: ${{ steps.ccache-save.outputs.save }}
 
     # CCACHE_BASEDIR, CCACHE_NOHASHDIR, and CCACHE_COMPILERCHECK
     # are allowing to cache compiler output across different

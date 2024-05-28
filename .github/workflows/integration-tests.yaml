@@ -26,11 +26,21 @@ on:
         required: false
         default: ''
         description: 'run id of custom zksync solc artifact to download.'
+      custom-solc-version:
+        type: string
+        required: false
+        default: ''
+        description: 'custom solc version to use for integration tests'
       ccache-key-type:
         type: string
         required: false
         default: 'dynamic'
         description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
+      save-ccache:
+        type: string
+        required: false
+        default: 'false'
+        description: 'Whether to save ccache after the build.'
       compiler-tester-repo:
         type: string
         required: false
@@ -93,19 +103,23 @@ jobs:
             --target-dir './target-zkvyper/'
 
       - name: Download custom solc
-        if: inputs.custom-solc-run-id != ''
+        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
         uses: actions/download-artifact@v4
         with:
-          path: ./solc-bin/
+          pattern: solc*
+          path: ./solc-custom-bin/
           run-id: ${{ inputs.custom-solc-run-id }}
           merge-multiple: true
 
       - name: Prepare custom solc
-        if: inputs.custom-solc-run-id != ''
+        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
         run: |
-          chmod a+x ./solc-bin/solc*
+          mkdir -p ./solc-bin
+          chmod a+x "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate"
+          mv "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate" \
+            "./solc-bin/solc-${{ inputs.custom-solc-version}}"
           echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
-          echo $(./solc-bin/solc* --version)
+          echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
 
       - name: Run integration tests
         run: |

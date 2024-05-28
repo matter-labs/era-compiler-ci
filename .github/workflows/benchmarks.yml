@@ -11,22 +11,22 @@ on:
       compiler_tester_reference_branch:
         type: string
         description: "compiler-tester branch to use as a benchmark reference"
-        required: true
+        required: false
         default: "main"
       compiler_tester_candidate_branch:
         type: string
         description: "compiler-tester branch to use as a benchmark candidate"
-        required: true
+        required: false
         default: "main"
       compiler_llvm_reference_branch:
         type: string
         description: "compiler-llvm branch to use as a benchmark reference"
-        required: true
+        required: false
         default: "main"
       compiler_llvm_candidate_branch:
         type: string
         description: "compiler-llvm branch to use as a benchmark candidate"
-        required: true
+        required: false
         default: "main"
       compiler_llvm_benchmark_mode:
         type: string
@@ -58,6 +58,11 @@ on:
         required: false
         default: ''
         description: 'run id of custom zksync solc artifact to download.'
+      custom-solc-version:
+        type: string
+        required: false
+        default: ''
+        description: 'custom solc version to use for benchmarks'
 
 jobs:
   benchmarks:
@@ -122,19 +127,23 @@ jobs:
             --target-dir './target-zkvyper/'
 
       - name: Download custom solc
-        if: inputs.custom-solc-run-id != '' && matrix.type == 'candidate'
+        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
         uses: actions/download-artifact@v4
         with:
-          path: ./solc-bin/
+          pattern: solc*
+          path: ./solc-custom-bin/
           run-id: ${{ inputs.custom-solc-run-id }}
           merge-multiple: true
 
       - name: Prepare custom solc
-        if: inputs.custom-solc-run-id != '' && matrix.type == 'candidate'
+        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
         run: |
-          chmod a+x ./solc-bin/solc*
+          mkdir -p ./solc-bin
+          chmod a+x "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-${{ matrix.type }}"
+          mv "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-${{ matrix.type }}" \
+            "./solc-bin/solc-${{ inputs.custom-solc-version}}"
           echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
-          echo $(./solc-bin/solc* --version)
+          echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
 
       - name: Run benchmarks
         run: |
@@ -146,6 +155,7 @@ jobs:
             --benchmark=${{ matrix.type }}.json
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: compiler-llvm-${{ matrix.type }}-benchmark
           path: ${{ matrix.type }}.json
@@ -158,6 +168,7 @@ jobs:
     container:
       image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
     needs: benchmarks
+    if: always()
     steps:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
