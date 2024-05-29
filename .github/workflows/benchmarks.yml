@@ -189,14 +189,14 @@ jobs:
 
       - name: Posting the LLVM benchmark results to the summary
         run: |
-          printf "Benchmark results:\n" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat result.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          printf "Benchmark results:\n" | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          cat result.txt | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' | tee -a $GITHUB_STEP_SUMMARY
           cat $GITHUB_STEP_SUMMARY > result.txt
 
       - name: Posting the LLVM benchmark results to a PR comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: mshick/add-pr-comment@v2
         with:
           message-path: result.txt
