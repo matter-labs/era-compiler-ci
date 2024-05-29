@@ -168,7 +168,7 @@ jobs:
     container:
       image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
     needs: benchmarks
-    if: always()
+    if: failure() || success()
     steps:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
