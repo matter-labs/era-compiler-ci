@@ -131,7 +131,7 @@ jobs:
 
       - name: Send Slack notification
         uses: 8398a7/action-slack@v3
-        if: ${{ failure() || success() }} # Skip canceled jobs
+        if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
         with:
           status: ${{ job.status }}
           fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
