@@ -1,0 +1,41 @@
+name: 'Cargo check'
+description: 'Checks cargo with check, deny, format, clippy, udeps and audit.'
+
+inputs:
+  github_token:
+    description: 'GitHub token for cargo audit.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+
+    - name: Install rustc nightly
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: rustup toolchain install nightly
+
+    - name: Cargo deny
+      uses: EmbarkStudios/cargo-deny-action@v1
+
+    - name: Cargo check
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: cargo check --verbose
+
+    - name: Cargo format
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: cargo fmt --all -- --check --verbose
+
+    - name: Cargo clippy
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: cargo clippy
+
+    - name: Cargo udeps
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: |
+        cargo install cargo-udeps
+        cargo +nightly udeps --all-targets
+
+    - name: Cargo audit
+      uses: rustsec/audit-check@v1.4.1
+      with:
+        token: ${{ inputs.github_token }}
