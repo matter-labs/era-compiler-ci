@@ -51,83 +51,90 @@ on:
         required: false
         default: 'matter-labs/era-compiler-llvm'
         description: 'Compiler LLVM repository to use. Required for forks testing.'
+      enable-linux-amd64:
+        type: boolean
+        required: false
+        default: true
+        description: 'Enable Linux AMD64 tests.'
+      enable-linux-arm64:
+        type: boolean
+        required: false
+        default: false
+        description: 'Enable Linux ARM64 tests.'
+      enable-macos-amd64:
+        type: boolean
+        required: false
+        default: false
+        description: 'Enable MacOS AMD64 tests.'
+      enable-macos-arm64:
+        type: boolean
+        required: false
+        default: false
+        description: 'Enable MacOS ARM64 tests.'
+      enable-windows-amd64:
+        type: boolean
+        required: false
+        default: false
+        description: 'Enable Windows AMD64 tests.'
+
 
 jobs:
+
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.prepare-matrix.outputs.matrix }}
+    steps:
+      - name: Prepare matrix
+        id: prepare-matrix
+        run: |
+          # Define general matrix parameters
+          # Windows is disabled due to long paths issue
+          # WINDOWS='{"name":"Windows","runner":"windows-2022-github-hosted-64core"}'
+          WINDOWS=
+          MACOS_AMD64='{"name":"MacOS-x86","runner":"macos-12-large"}'
+          MACOS_ARM64='{"name":"MacOS-arm64","runner":["self-hosted","macOS","ARM64"]}'
+          LINUX_AMD64='{"name":"Linux-AMD64","runner":"matterlabs-ci-runner","image":"matterlabs/llvm_runner:ubuntu22-llvm17-latest"}'
+          LINUX_ARM64='{"name":"Linux-ARM64","runner":"matterlabs-ci-runner-arm","image":"matterlabs/llvm_runner:ubuntu22-llvm17-latest"}'
+          # Disable platforms for non-tag builds if user requested
+          [ ${{ inputs.enable-windows-amd64 }} != true ] && WINDOWS=
+          [ ${{ inputs.enable-macos-amd64 }} != true ] && MACOS_AMD64=
+          [ ${{ inputs.enable-macos-arm64 }} != true ] && MACOS_ARM64=
+          [ ${{ inputs.enable-linux-amd64 }} != true ] && LINUX_AMD64=
+          [ ${{ inputs.enable-linux-arm64 }} != true ] && LINUX_ARM64=
+          PLATFORMS=(${WINDOWS} ${MACOS_AMD64} ${MACOS_ARM64} ${LINUX_AMD64} ${LINUX_ARM64})
+          echo "matrix={ \"include\": [ $(IFS=, ; echo "${PLATFORMS[*]}") ] }" | tee -a "${GITHUB_OUTPUT}"
+
   run-integration-tests:
-    runs-on: ci-runner-compiler
+    needs: prepare-matrix
     timeout-minutes: 720
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
     container:
-      image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
+      image: ${{ matrix.image || '' }} # Special workaround to allow matrix builds with optional container
       options: -m 110g
+    name: Integration tests ${{ matrix.name }}
     steps:
 
-      - name: Checkout compiler-tester
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.compiler-tester-repo }}
-          ref: ${{ inputs.compiler-tester-ref || '' }}
-          submodules: recursive
+      - name: Prepare Windows env
+        if: runner.os == 'Windows'
+        uses: matter-labs/era-compiler-ci/.github/actions/prepare-msys@v1
 
-      - name: Checkout LLVM
-        if: inputs.llvm-ref != ''
-        uses: actions/checkout@v4
+      - name: Integration tests
+        uses: matter-labs/era-compiler-ci/.github/actions/integration-tests@aba-multiplatform-integration-tests
         with:
-          repository: ${{ inputs.compiler-llvm-repo }}
-          ref: ${{ inputs.llvm-ref }}
-          path: llvm
-
-      # An issue prevents to correctly use the same version of composite actions from `workflow_call`
-      # https://github.com/actions/toolkit/issues/1264
-      # for now, it will always be taken from the latest main
-      - name: Build LLVM
-        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
-        with:
-          extra-args: "\\-DLLVM_ENABLE_WERROR=On \\-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-          enable-tests: true
-          enable-assertions: true
-          clone-llvm: ${{ inputs.llvm-ref == '' && 'true' || 'false' }}
+          compiler-tester-ref: ${{ inputs.compiler-tester-ref }}
+          llvm-ref: ${{ inputs.llvm-ref }}
+          path: ${{ inputs.path }}
+          extra-args: ${{ inputs.extra-args }}
+          custom-solc-run-id: ${{ inputs.custom-solc-run-id }}
+          custom-solc-version: ${{ inputs.custom-solc-version }}
           ccache-key-type: ${{ inputs.ccache-key-type }}
-
-      - name: Build compiler-tester
-        run: cargo build --verbose --release --bin 'compiler-tester'
-
-      - name: Build compilers
-        env:
-          CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
-        run: |
-          cargo build --verbose --release \
-            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-solidity-*/*/Cargo.toml \
-            --target-dir './target-zksolc/'
-          cargo build --verbose --release \
-            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
-            --target-dir './target-zkvyper/'
-
-      - name: Download custom solc
-        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
-        uses: actions/download-artifact@v4
-        with:
-          pattern: solc*
-          path: ./solc-custom-bin/
-          run-id: ${{ inputs.custom-solc-run-id }}
-          merge-multiple: true
-
-      - name: Prepare custom solc
-        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
-        run: |
-          mkdir -p ./solc-bin
-          chmod a+x "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate"
-          mv "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate" \
-            "./solc-bin/solc-${{ inputs.custom-solc-version}}"
-          echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
-          echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
-
-      - name: Run integration tests
-        run: |
-          set -x
-          ./target/release/compiler-tester \
-            --zksolc './target-zksolc/release/zksolc' \
-            --zkvyper './target-zkvyper/release/zkvyper' \
-            --path '${{ inputs.path }}' ${{ inputs.extra-args }}
+          save-ccache: ${{ inputs.save-ccache }}
+          compiler-tester-repo: ${{ inputs.compiler-tester-repo }}
+          compiler-llvm-repo: ${{ inputs.compiler-llvm-repo }}
 
       - name: Send Slack notification
         uses: 8398a7/action-slack@v3
