@@ -54,7 +54,7 @@ on:
 
 jobs:
   run-integration-tests:
-    runs-on: ci-runner-compiler
+    runs-on: [ci-runner-compiler, Linux]
     timeout-minutes: 720
     container:
       image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
