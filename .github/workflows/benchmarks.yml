@@ -63,17 +63,23 @@ on:
         required: false
         default: ''
         description: 'custom solc version to use for benchmarks'
+      target-machine:
+        type: string
+        required: false
+        default: ''
+        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `EraVM`, `EVM`, `EVMEmulator`. Use `default` or `` to skip `--target` parameter.'
 
 jobs:
+
   benchmarks:
     strategy:
       fail-fast: false
       matrix:
         type: ["reference", "candidate"]
-    name: ${{ matrix.type }}
+    name: ${{ inputs.target-machine}} ${{ matrix.type }}
     runs-on: matterlabs-ci-runner
     container:
-      image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
+      image: ghcr.io/matter-labs/llvm_runner/ubuntu22-llvm17:latest
       options: -m 110g
     steps:
       - name: Define branches
@@ -146,8 +152,12 @@ jobs:
           echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
 
       - name: Run benchmarks
+        shell: bash -ex {0}
         run: |
-          ./target/release/compiler-tester \
+          if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
+            TARGET="--target ${{ inputs.target-machine }}"
+          fi
+          ./target/release/compiler-tester ${TARGET} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
@@ -166,7 +176,7 @@ jobs:
     permissions:
       pull-requests: write
     container:
-      image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
+      image: ghcr.io/matter-labs/llvm_runner/ubuntu22-llvm17:latest
     needs: benchmarks
     if: failure() || success()
     steps:
@@ -189,7 +199,7 @@ jobs:
 
       - name: Posting the LLVM benchmark results to the summary
         run: |
-          printf "Benchmark results:\n" | tee -a $GITHUB_STEP_SUMMARY
+          printf "Benchmark results ${{ inputs.target-machine }}:\n" | tee -a $GITHUB_STEP_SUMMARY
           echo '```' | tee -a $GITHUB_STEP_SUMMARY
           cat result.txt | tee -a $GITHUB_STEP_SUMMARY
           echo '```' | tee -a $GITHUB_STEP_SUMMARY

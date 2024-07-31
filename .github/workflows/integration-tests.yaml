@@ -16,6 +16,11 @@ on:
         required: false
         default: ''
         description: 'Path filter for integration tests execution. For example: `tests/solidity/`.'
+      target-machine:
+        type: string
+        required: false
+        default: ''
+        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `EraVM`, `EVM`, `EVMEmulator`. Use `default` or `` to skip `--target` parameter.'
       extra-args:
         type: string
         required: false
@@ -53,12 +58,14 @@ on:
         description: 'Compiler LLVM repository to use. Required for forks testing.'
 
 jobs:
-  run-integration-tests:
+
+  integration-tests:
     runs-on: [ci-runner-compiler, Linux]
     timeout-minutes: 720
     container:
-      image: matterlabs/llvm_runner:ubuntu22-llvm17-latest
+      image: ghcr.io/matter-labs/llvm_runner/ubuntu22-llvm17:latest
       options: -m 110g
+    name: Integration Tests ${{ inputs.target-machine || 'default' }}
     steps:
 
       - name: Checkout compiler-tester
@@ -82,7 +89,6 @@ jobs:
       - name: Build LLVM
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
-          extra-args: "\\-DLLVM_ENABLE_WERROR=On \\-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
           enable-tests: true
           enable-assertions: true
           clone-llvm: ${{ inputs.llvm-ref == '' && 'true' || 'false' }}
@@ -122,9 +128,12 @@ jobs:
           echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
 
       - name: Run integration tests
+        shell: bash -ex {0}
         run: |
-          set -x
-          ./target/release/compiler-tester \
+          if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
+            TARGET="--target ${{ inputs.target-machine }}"
+          fi
+          ./target/release/compiler-tester ${TARGET} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path '${{ inputs.path }}' ${{ inputs.extra-args }}
@@ -133,6 +142,7 @@ jobs:
         uses: 8398a7/action-slack@v3
         if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
         with:
+          job_name: Integration Tests ${{ inputs.target-machine || 'default' }}
           status: ${{ job.status }}
           fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
         env:
