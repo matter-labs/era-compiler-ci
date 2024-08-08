@@ -92,7 +92,10 @@ runs:
         else
           LLVM_BRANCH="$(git -C ./llvm rev-parse --abbrev-ref HEAD)"
           LLVM_SHORT_SHA="$(git -C ./llvm rev-parse --short HEAD)"
-          echo "key=llvm-${LLVM_BRANCH}-${LLVM_SHORT_SHA}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target-env }}" | tee -a "${GITHUB_OUTPUT}"
+          if [ '${{ inputs.enable-coverage }}' = 'true' ]; then
+            COVERAGE_SUFFIX="-coverage"
+          fi
+          echo "key=llvm-${LLVM_BRANCH}-${LLVM_SHORT_SHA}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.target-env }}${COVERAGE_SUFFIX}" | tee -a "${GITHUB_OUTPUT}"
         fi
 
     # CCache action requires `apt update`
