@@ -79,7 +79,7 @@ jobs:
     name: ${{ inputs.target-machine}} ${{ matrix.type }}
     runs-on: matterlabs-ci-runner
     container:
-      image: ghcr.io/matter-labs/llvm_runner/ubuntu22-llvm17:latest
+      image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
     steps:
       - name: Define branches
@@ -176,7 +176,7 @@ jobs:
     permissions:
       pull-requests: write
     container:
-      image: ghcr.io/matter-labs/llvm_runner/ubuntu22-llvm17:latest
+      image: ghcr.io/matter-labs/zksync-llvm-runner:latest
     needs: benchmarks
     if: failure() || success()
     steps:
