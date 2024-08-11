@@ -132,11 +132,15 @@ jobs:
         run: |
           if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
             TARGET="--target ${{ inputs.target-machine }}"
+            # Always use upstream solc for EVM target for now
+            if [[ "${{ inputs.target-machine }}" == "EVM" ]]; then
+              UPSTREAM_SOLC="--use-upstream-solc"
+            fi
           fi
-          ./target/release/compiler-tester ${TARGET} \
+          ./target/release/compiler-tester ${TARGET} ${UPSTREAM_SOLC} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
-            --path '${{ inputs.path }}' ${{ inputs.extra-args }}
+            --path '${{ inputs.path }}'${EVM_MODE} ${{ inputs.extra-args }}
 
       - name: Send Slack notification
         uses: 8398a7/action-slack@v3

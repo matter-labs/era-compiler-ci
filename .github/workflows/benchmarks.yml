@@ -154,14 +154,20 @@ jobs:
       - name: Run benchmarks
         shell: bash -ex {0}
         run: |
+          MODE="${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}"
           if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
             TARGET="--target ${{ inputs.target-machine }}"
+            # Always use upstream solc for EVM target for now
+            if [[ "${{ inputs.target-machine }}" == "EVM" ]]; then
+              UPSTREAM_SOLC="--use-upstream-solc"
+              MODE="^"
+            fi
           fi
-          ./target/release/compiler-tester ${TARGET} \
+          ./target/release/compiler-tester ${TARGET} ${UPSTREAM_SOLC} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
-            --mode='${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}' \
+            --mode="${MODE}" \
             --benchmark=${{ matrix.type }}.json
 
       - uses: actions/upload-artifact@v4
