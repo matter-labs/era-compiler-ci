@@ -81,6 +81,7 @@ jobs:
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
+    continue-on-error: ${{ matrix.type == 'reference' }}
     steps:
       - name: Define branches
         id: define-branches
@@ -185,6 +186,7 @@ jobs:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
     needs: benchmarks
     if: failure() || success()
+    continue-on-error: true
     steps:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
