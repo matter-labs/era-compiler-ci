@@ -20,7 +20,7 @@ on:
         type: string
         required: false
         default: ''
-        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `EraVM`, `EVM`, `EVMEmulator`. Use `default` or `` to skip `--target` parameter.'
+        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`. Use `default` or `` to skip this parameter.'
       extra-args:
         type: string
         required: false
