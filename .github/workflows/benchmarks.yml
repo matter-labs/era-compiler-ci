@@ -67,7 +67,7 @@ on:
         type: string
         required: false
         default: ''
-        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `EraVM`, `EVM`, `EVMEmulator`. Use `default` or `` to skip `--target` parameter.'
+        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`. Use `default` or `` to skip this parameter.'
 
 jobs:
 
@@ -159,11 +159,11 @@ jobs:
             TARGET="--target ${{ inputs.target-machine }}"
             # Always use upstream solc for EVM target for now
             if [[ "${{ inputs.target-machine }}" == "EVM" ]]; then
-              UPSTREAM_SOLC="--use-upstream-solc"
+              TOOLCHAIN="--toolchain solc"
               MODE="^"
             fi
           fi
-          ./target/release/compiler-tester ${TARGET} ${UPSTREAM_SOLC} \
+          ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
