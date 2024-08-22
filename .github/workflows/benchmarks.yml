@@ -158,7 +158,7 @@ jobs:
           if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
             TARGET="--target ${{ inputs.target-machine }}"
             # Always use upstream solc for EVM target for now
-            if [[ "${{ inputs.target-machine }}" == "EVM" ]]; then
+            if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
               TOOLCHAIN="--toolchain solc"
               MODE="^"
             fi
