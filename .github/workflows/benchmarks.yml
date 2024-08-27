@@ -83,20 +83,24 @@ jobs:
       options: -m 110g
     steps:
       - name: Define branches
+        shell: bash -ex {0}
         id: define-branches
         run: |
           if [ "${{ matrix.type }}" = "candidate" ]; then
             echo "compiler-tester-branch=${{ inputs.compiler_tester_candidate_branch || github.head_ref }}" | tee -a "${GITHUB_OUTPUT}"
             echo "llvm-branch=${{ inputs.compiler_llvm_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+            echo "compiler-tester-repo=${{ inputs.compiler-tester-repo || github.event.pull_request.head.repo.full_name }}" | tee -a "${GITHUB_OUTPUT}"
           else
             echo "compiler-tester-branch=${{ inputs.compiler_tester_reference_branch || github.event.repository.default_branch }}" | tee -a "${GITHUB_OUTPUT}"
             echo "llvm-branch=${{ inputs.compiler_llvm_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+            # Always use base repo for the reference testing
+            echo "compiler-tester-repo=matter-labs/era-compiler-tester" | tee -a "${GITHUB_OUTPUT}"
           fi
 
       - name: Checkout compiler-tester
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.compiler-tester-repo }}
+          repository: ${{ steps.define-branches.outputs.compiler-tester-repo }}
           ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
           submodules: recursive
 
