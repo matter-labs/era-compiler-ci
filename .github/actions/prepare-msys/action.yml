@@ -6,7 +6,7 @@ runs:
   - name: Setup msys2
     uses: msys2/setup-msys2@v2
     with:
-      path-type: inherit # Important to correctly update PATH
+      path-type: strict # Important to correctly update PATH
       install: >-
         base-devel
         git
@@ -17,7 +17,10 @@ runs:
         mingw-w64-x86_64-cmake
         mingw-w64-x86_64-gcc
         mingw-w64-x86_64-gcc-libs
+        mingw-w64-x86_64-python
+        mingw-w64-x86_64-boost
 
   - name: Prepare env
     shell: 'msys2 {0}'
-    run: echo "/c/Users/runneradmin/.cargo/bin" >> "${GITHUB_PATH}"
+    run: |
+      echo "export PATH=/c/Users/runneradmin/.cargo/bin:/mingw64/bin:/usr/bin:/usr/local/bin" >> ${HOME}/.bash_profile

@@ -51,7 +51,7 @@ inputs:
   llvm-builder-version:
     description: 'Version of the LLVM builder to use.'
     required: false
-    default: '1.0.32'
+    default: '1.0.33'
   ccache-key:
     description: 'Github Actions cache key for CCache.'
     required: false
@@ -158,5 +158,6 @@ runs:
         if [[ -n "${{ inputs.default-target-triple }}" && "${{ inputs.default-target-triple }}" != "default" ]]; then
           DEFAULT_TARGET="--default-target ${{ inputs.default-target-triple }}"
         fi
+
         zksync-llvm build --target-env ${{ inputs.target-env }} ${DEFAULT_TARGET} \
           --use-ccache ${{ inputs.builder-extra-args }} ${DEBUG_ARG} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${SANITIZER} ${EXTRA_ARGS}
