@@ -23,4 +23,4 @@ runs:
   - name: Prepare env
     shell: 'msys2 {0}'
     run: |
-      echo "export PATH=/c/Users/runneradmin/.cargo/bin:/mingw64/bin:${PATH}" >> ${HOME}/.bash_profile
+      echo "/c/Users/runneradmin/.cargo/bin" >> "${GITHUB_PATH}"
