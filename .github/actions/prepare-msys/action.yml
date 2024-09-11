@@ -6,7 +6,7 @@ runs:
   - name: Setup msys2
     uses: msys2/setup-msys2@v2
     with:
-      path-type: strict # Important to correctly update PATH
+      path-type: inherit # Important to correctly update PATH
       install: >-
         base-devel
         git
@@ -23,4 +23,4 @@ runs:
   - name: Prepare env
     shell: 'msys2 {0}'
     run: |
-      echo "export PATH=/c/Users/runneradmin/.cargo/bin:/mingw64/bin:/usr/bin:/usr/local/bin" >> ${HOME}/.bash_profile
+      echo "export PATH=/c/Users/runneradmin/.cargo/bin:/mingw64/bin:${PATH}" >> ${HOME}/.bash_profile
