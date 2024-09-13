@@ -177,7 +177,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: compiler-llvm-${{ matrix.type }}-benchmark
+          name: compiler-llvm-${{ matrix.type }}-benchmark-${{ inputs.target-machine }}
           path: ${{ matrix.type }}.json
 
   analysis:
@@ -188,7 +188,7 @@ jobs:
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
     needs: benchmarks
-    if: failure() || success()
+    if: ${{ (failure() || success()) && inputs.target-machine != 'evm' }}
     steps:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
@@ -209,7 +209,6 @@ jobs:
 
       - name: Posting the LLVM benchmark results to the summary
         run: |
-          printf "Benchmark results ${{ inputs.target-machine }}:\n" | tee -a $GITHUB_STEP_SUMMARY
           echo '```' | tee -a $GITHUB_STEP_SUMMARY
           cat result.txt | tee -a $GITHUB_STEP_SUMMARY
           echo '```' | tee -a $GITHUB_STEP_SUMMARY
