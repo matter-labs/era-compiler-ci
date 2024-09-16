@@ -66,8 +66,8 @@ on:
       target-machine:
         type: string
         required: false
-        default: ''
-        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`. Use `default` or `` to skip this parameter.'
+        default: 'eravm'
+        description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`.'
 
 jobs:
 
@@ -172,13 +172,13 @@ jobs:
             --zkvyper './target-zkvyper/release/zkvyper' \
             --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
             --mode="${MODE}" \
-            --benchmark=${{ matrix.type }}.json
+            --benchmark=${{ inputs.target-machine }}-${{ matrix.type }}.json
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: compiler-llvm-${{ matrix.type }}-benchmark-${{ inputs.target-machine }}
-          path: ${{ matrix.type }}.json
+          name: compiler-llvm-${{ inputs.target-machine }}-${{ matrix.type }}-benchmark
+          path: ${{ inputs.target-machine }}-${{ matrix.type }}.json
 
   analysis:
     name: "Benchmark comparison"
@@ -199,13 +199,15 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: compiler-llvm-*
+          pattern: compiler-llvm-${{ inputs.target-machine }}*
           merge-multiple: true
 
       - name: Comparing the LLVM framework benchmark results
         run: |
           cargo run --release --bin benchmark-analyzer -- \
-            --reference reference.json --candidate candidate.json --output-file result.txt
+            --reference ${{ inputs.target-machine }}-reference.json \
+            --candidate ${{ inputs.target-machine }}-candidate.json \
+            --output-file result.txt
 
       - name: Posting the LLVM benchmark results to the summary
         run: |
