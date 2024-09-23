@@ -49,9 +49,9 @@ inputs:
     required: false
     default: ''
   build-type:
-    description: 'LLVM build type: debug | release'
+    description: 'LLVM build type. Possible values are `Debug`, `Release`, `RelWithDebInfo`, or `MinSizeRel`. [default: Release]'
     required: false
-    default: 'release'
+    default: 'Release'
   target-env:
     description: 'Target environment (gnu or musl).'
     required: false
@@ -156,7 +156,6 @@ runs:
         LIBSTDCPP_SOURCE_PATH: "C:/a/_temp/msys64/mingw64/lib/libstdc++.a"
       run: |
         set -x
-        [ "${{ inputs.build-type }}" = "debug" ] && DEBUG_ARG="--debug"
         [ "${{ inputs.enable-tests }}" = "true" ] && ENABLE_TESTS="--enable-tests"
         [ "${{ inputs.enable-assertions }}" = "true" ] && ENABLE_ASSERTIONS="--enable-assertions"
         [ "${{ inputs.enable-coverage }}" = "true" ] && ENABLE_COVERAGE="--enable-coverage"
@@ -169,5 +168,5 @@ runs:
           DEFAULT_TARGET="--default-target ${{ inputs.default-target-triple }}"
         fi
 
-        zksync-llvm build --target-env ${{ inputs.target-env }} ${DEFAULT_TARGET} \
-          --use-ccache ${{ inputs.builder-extra-args }} ${DEBUG_ARG} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
+        zksync-llvm build --target-env ${{ inputs.target-env }} ${DEFAULT_TARGET} --build-type ${{ inputs.build-type }} \
+          --use-ccache ${{ inputs.builder-extra-args }} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
