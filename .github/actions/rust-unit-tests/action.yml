@@ -16,7 +16,7 @@ inputs:
   build-type:
     description: 'Type of build: release or debug.'
     required: false
-    default: 'release'
+    default: 'debug'
   enable-coverage:
     description: 'Enable code coverage.'
     required: false
