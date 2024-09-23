@@ -13,10 +13,6 @@ inputs:
     description: 'Output unit tests results XML filename.'
     required: false
     default: 'unit-tests-results.xml'
-  build-type:
-    description: 'Type of build: release or debug.'
-    required: false
-    default: 'debug'
   enable-coverage:
     description: 'Enable code coverage.'
     required: false
@@ -37,29 +33,52 @@ runs:
         rustup target add ${{ inputs.target }}
         echo "target=--target ${{ inputs.target }}" >> "${GITHUB_OUTPUT}"
 
-    - name: Run unit tests
+    - name: Prepare test env
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: |
+        cargo install cargo2junit
+        if [ '${{ inputs.enable-coverage }}' = 'true' ]; then
+          cargo install cargo-llvm-cov
+        fi
+
+    - name: Run unit tests (release)
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
       env:
         RUSTC_BOOTSTRAP: 1
       run: |
-        cargo install cargo2junit
         if [ '${{ inputs.sanitizer }}' != '' ]; then
           rustup component add rust-src --toolchain "$(rustc --version | cut -d ' ' -f2)-${TARGET}"
           export RUSTFLAGS="${RUSTFLAGS} -Z sanitizer=${{ inputs.sanitizer }}"
         fi
-        [ ${{ inputs.build-type }} = 'release' ] && RELEASE="--release"
-
         TEST_COMMAND="test"
         if [ '${{ inputs.enable-coverage }}' = 'true' ]; then
-          cargo install cargo-llvm-cov
           export LLVM_COV=$(which llvm-cov)
           export LLVM_PROFDATA=$(which llvm-profdata)
           TEST_COMMAND="llvm-cov --all-features --workspace --lcov --output-path lcov.info"
         fi
-        cargo ${TEST_COMMAND} ${RELEASE} ${{ steps.build-target.outputs.target }} -- -Z unstable-options \
-          --format json | tee -a results.json | grep 'failed'
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
+        cargo ${TEST_COMMAND} --release ${{ steps.build-target.outputs.target }} -- -Z unstable-options \
+          --format json | tee -a release-results.json | grep 'failed'
         if [ $? -eq 0 ]; then
-          cargo2junit < results.json > "${{ inputs.results-xml }}"
+          cargo2junit < release-results.json > "release-${{ inputs.results-xml }}"
+        fi
+
+    - name: Run unit tests (debug)
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
+      env:
+        RUSTC_BOOTSTRAP: 1
+      run: |
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
+        cargo test ${{ steps.build-target.outputs.target }} -- -Z unstable-options \
+          --format json | tee -a debug-results.json | grep 'failed'
+        if [ $? -eq 0 ]; then
+          cargo2junit < debug-results.json > "debug-${{ inputs.results-xml }}"
         fi
 
     - name: Upload results Linux
@@ -67,7 +86,7 @@ runs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         check_name: ${{ runner.os }} ${{ runner.arch }} Unit Tests Results
-        files: ${{ inputs.results-xml }}
+        files: '*${{ inputs.results-xml }}'
         action_fail_on_inconclusive: true
         comment_mode: off
 
@@ -76,7 +95,7 @@ runs:
       uses: EnricoMi/publish-unit-test-result-action/macos@v2
       with:
         check_name: ${{ runner.os }} ${{ runner.arch }} Unit Tests Results
-        files: ${{ inputs.results-xml }}
+        files: '*${{ inputs.results-xml }}'
         action_fail_on_inconclusive: true
         comment_mode: off
 
@@ -85,7 +104,7 @@ runs:
       uses: EnricoMi/publish-unit-test-result-action/windows@v2
       with:
         check_name: ${{ runner.os }} ${{ runner.arch }} Unit Tests Results
-        files: ${{ inputs.results-xml }}
+        files: '*${{ inputs.results-xml }}'
         action_fail_on_inconclusive: true
         comment_mode: off
 
