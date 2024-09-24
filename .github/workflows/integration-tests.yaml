@@ -114,4 +114,13 @@ jobs:
           custom-solc-run-id: ${{ inputs.custom-solc-run-id }}
           custom-solc-version: ${{ inputs.custom-solc-version }}
           target-machine: ${{ inputs.target-machine }}
-          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
+        with:
+          job_name: ${{ inputs.target-machine }} ${{ matrix.name }}
+          status: ${{ job.status }}
+          fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

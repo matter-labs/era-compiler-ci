@@ -22,9 +22,6 @@ inputs:
     required: false
     default: 'eravm'
     description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`.'
-  slack_webhook_url:
-    required: true
-    description: 'Slack webhook URL for notifications.'
 
 runs:
   using: "composite"
@@ -113,13 +110,3 @@ runs:
         ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${PATH_FILTER} \
           --zksolc './target-zksolc/release/zksolc' \
           --zkvyper './target-zkvyper/release/zkvyper' ${{ inputs.extra-args }}
-
-    - name: Send Slack notification
-      uses: 8398a7/action-slack@v3
-      if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
-      with:
-        job_name: Integration Tests ${{ inputs.target-machine || 'default' }}
-        status: ${{ job.status }}
-        fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
-      env:
-        SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook_url }}
