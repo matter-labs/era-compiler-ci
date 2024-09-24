@@ -1,0 +1,125 @@
+name: 'Run integration tests'
+description: 'Runs integration tests.'
+inputs:
+  path:
+    required: false
+    default: ''
+    description: 'Path filter for integration tests execution. For example: `tests/solidity/`.'
+  extra-args:
+    required: false
+    default: ''
+    description: 'Extra arguments for era-compiler-tester.'
+  custom-solc-run-id:
+    required: false
+    default: ''
+    description: 'run id of custom zksync solc artifact to download.'
+  custom-solc-version:
+    required: false
+    default: ''
+    description: 'custom solc version to use for integration tests'
+  target-machine:
+    type: string
+    required: false
+    default: 'eravm'
+    description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`.'
+  slack_webhook_url:
+    required: true
+    description: 'Slack webhook URL for notifications.'
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Set long paths support
+      if: runner.os == 'Windows'
+      shell: 'msys2 {0}'
+      run: |
+        git config --system core.longpaths true
+        git config --global core.longpaths true
+
+    - name: Build compiler-tester
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
+      run: cargo build --release --bin 'compiler-tester'
+
+    - name: Build zksolc
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: |
+        [ ${RUNNER_OS} == 'Windows' ] && export CARGO_HOME="/c/Users/runneradmin/.cargo"
+        [ -z ${CARGO_HOME} ] && CARGO_HOME=${HOME}/.cargo
+        # Get unique SHA of the era-compiler-solidity dependency from the Cargo.lock
+        # it is required to workaround the case when multiple zksolc versions are cloned
+        # e.g. on self-hosted runners
+        ZKSOLC_VERSION=$(cargo tree --frozen --depth 1 --format {p} | grep -m 1 era-compiler-solidity | sed -n 's/.*#\([0-9a-f]\{7\}\).*/\1/p')
+        cargo build --release \
+          --manifest-path ${CARGO_HOME}/git/checkouts/era-compiler-solidity-*/${ZKSOLC_VERSION}/Cargo.toml \
+          --target-dir './target-zksolc/'
+
+    - name: Build zkvyper
+      if: ${{ ! (runner.os == 'Linux' && runner.arch == 'ARM64') }}
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      run: |
+        [ ${RUNNER_OS} == 'Windows' ] && export CARGO_HOME="/c/Users/runneradmin/.cargo"
+        [ -z ${CARGO_HOME} ] && CARGO_HOME=${HOME}/.cargo
+        # Get unique SHA of the era-compiler-vyper dependency from the Cargo.lock
+        # it is required to workaround the case when multiple zkvyper versions are cloned
+        # e.g. on self-hosted runners
+        ZKVYPER_VERSION=$(cargo tree --frozen --depth 1 --format {p} | grep -m 1 era-compiler-vyper | sed -n 's/.*#\([0-9a-f]\{7\}\).*/\1/p')
+        cargo build --release \
+          --manifest-path ${CARGO_HOME}/git/checkouts/era-compiler-vyper-*/${ZKVYPER_VERSION}/Cargo.toml \
+          --target-dir './target-zkvyper/'
+
+    - name: Download custom solc
+      if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
+      uses: actions/download-artifact@v4
+      with:
+        pattern: solc*
+        path: ./solc-custom-bin/
+        run-id: ${{ inputs.custom-solc-run-id }}
+        merge-multiple: true
+
+    - name: Prepare custom solc
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
+      if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
+      run: |
+        mkdir -p ./solc-bin
+        chmod a+x "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate"
+        mv "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate" \
+          "./solc-bin/solc-${{ inputs.custom-solc-version}}"
+        echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
+        echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
+
+    - name: Run integration tests
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
+      run: |
+        if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
+          TARGET="--target ${{ inputs.target-machine }}"
+          # Always use upstream solc for EVM target for now
+          if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
+            TOOLCHAIN="--toolchain solc"
+          fi
+        fi
+
+        # Define path filter
+        if [ -z "${{ inputs.path }}" ]; then
+          PATH_FILTER=''
+          # Vyper tests are disabled on ARM64 (vyper not supported)
+          if [ "${RUNNER_ARCH}" == "ARM64" ]; then
+            PATH_FILTER="--path tests/solidity"
+          fi
+        else
+          PATH_FILTER="--path '${{ inputs.path }}'"
+        fi
+
+        ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${PATH_FILTER} \
+          --zksolc './target-zksolc/release/zksolc' \
+          --zkvyper './target-zkvyper/release/zkvyper' ${{ inputs.extra-args }}
+
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
+      with:
+        job_name: Integration Tests ${{ inputs.target-machine || 'default' }}
+        status: ${{ job.status }}
+        fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook_url }}
