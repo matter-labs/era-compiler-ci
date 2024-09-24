@@ -56,16 +56,24 @@ on:
         required: false
         default: 'matter-labs/era-compiler-llvm'
         description: 'Compiler LLVM repository to use. Required for forks testing.'
+      platforms-matrix:
+        type: string
+        required: false
+        default: '{ "include": [ {"name":"Linux-AMD64","runner":"matterlabs-ci-runner-high-performance","image":"ghcr.io/matter-labs/zksync-llvm-runner:latest"} ] }'
+        description: 'Platforms matrix for the job.'
 
 jobs:
 
   integration-tests:
-    runs-on: [ci-runner-compiler, Linux]
     timeout-minutes: 720
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(inputs.platforms-matrix) }}
+    runs-on: ${{ matrix.runner }}
     container:
-      image: ghcr.io/matter-labs/zksync-llvm-runner:latest
+      image: ${{ matrix.image || '' }} # Special workaround to allow matrix builds with optional container
       options: -m 110g
-    name: Integration Tests ${{ inputs.target-machine || 'default' }}
+    name: ${{ inputs.target-machine }} ${{ matrix.name }}
     steps:
 
       - name: Checkout compiler-tester
@@ -83,6 +91,10 @@ jobs:
           ref: ${{ inputs.llvm-ref }}
           path: llvm
 
+      - name: Prepare Windows env
+        if: runner.os == 'Windows'
+        uses: matter-labs/era-compiler-ci/.github/actions/prepare-msys@v1
+
       # An issue prevents to correctly use the same version of composite actions from `workflow_call`
       # https://github.com/actions/toolkit/issues/1264
       # for now, it will always be taken from the latest main
@@ -94,60 +106,12 @@ jobs:
           clone-llvm: ${{ inputs.llvm-ref == '' && 'true' || 'false' }}
           ccache-key-type: ${{ inputs.ccache-key-type }}
 
-      - name: Build compiler-tester
-        run: cargo build --verbose --release --bin 'compiler-tester'
-
-      - name: Build compilers
-        env:
-          CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
-        run: |
-          cargo build --verbose --release \
-            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-solidity-*/*/Cargo.toml \
-            --target-dir './target-zksolc/'
-          cargo build --verbose --release \
-            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
-            --target-dir './target-zkvyper/'
-
-      - name: Download custom solc
-        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
-        uses: actions/download-artifact@v4
+      - name: Integration tests
+        uses: matter-labs/era-compiler-ci/.github/actions/integration-tests@main
         with:
-          pattern: solc*
-          path: ./solc-custom-bin/
-          run-id: ${{ inputs.custom-solc-run-id }}
-          merge-multiple: true
-
-      - name: Prepare custom solc
-        if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
-        run: |
-          mkdir -p ./solc-bin
-          chmod a+x "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate"
-          mv "./solc-custom-bin/solc-${{ inputs.custom-solc-version}}-candidate" \
-            "./solc-bin/solc-${{ inputs.custom-solc-version}}"
-          echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
-          echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
-
-      - name: Run integration tests
-        shell: bash -ex {0}
-        run: |
-          if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
-            TARGET="--target ${{ inputs.target-machine }}"
-            # Always use upstream solc for EVM target for now
-            if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
-              TOOLCHAIN="--toolchain solc"
-            fi
-          fi
-          ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} \
-            --zksolc './target-zksolc/release/zksolc' \
-            --zkvyper './target-zkvyper/release/zkvyper' \
-            --path '${{ inputs.path }}'${EVM_MODE} ${{ inputs.extra-args }}
-
-      - name: Send Slack notification
-        uses: 8398a7/action-slack@v3
-        if: (failure() || success()) && (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)
-        with:
-          job_name: Integration Tests ${{ inputs.target-machine || 'default' }}
-          status: ${{ job.status }}
-          fields: repo,commit,author,action,eventName,ref,workflow,job,took,pullRequest
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          path: ${{ inputs.path }}
+          extra-args: ${{ inputs.extra-args }}
+          custom-solc-run-id: ${{ inputs.custom-solc-run-id }}
+          custom-solc-version: ${{ inputs.custom-solc-version }}
+          target-machine: ${{ inputs.target-machine }}
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK }}
