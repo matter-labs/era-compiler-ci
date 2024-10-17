@@ -52,6 +52,7 @@ runs:
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
       env:
         CXXFLAGS: "-Wno-narrowing"
+        BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
         mkdir -p ./build
@@ -60,15 +61,17 @@ runs:
         if [ ${RUNNER_OS} == macOS ]; then
           export BOOST_ROOT=${PWD}/boost
         else
-          export BOOST_ROOT=/boost/lib/cmake/Boost-1.74.0
+          export BOOST_ROOT=/boost/lib/cmake/Boost-${BOOST_VERSION}
         fi
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
         if [ ${RUNNER_OS} = Windows ]; then
-           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=/boost/lib/cmake/Boost-1.74.0"
+           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=/boost/lib/cmake/Boost-${BOOST_VERSION}"
            export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
+        ls -la ${BOOST_ROOT}
+        find ${BOOST_ROOT}
         cmake .. \
           -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
