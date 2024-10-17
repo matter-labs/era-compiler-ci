@@ -44,7 +44,7 @@ runs:
             ./bootstrap.sh --prefix=${PWD}/boost
           fi
         else
-          ./bootstrap.sh --prefix=${PWD}/boost
+          ./bootstrap.sh --prefix=/c/Users/runneradmin/boost
         fi
         ./b2 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
 
@@ -58,7 +58,7 @@ runs:
         mkdir -p ./build
         cd ./build
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
-        export BOOST_ROOT=${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}
+        export BOOST_ROOT=/c/Users/runneradmin/boost/lib/cmake/Boost-${BOOST_VERSION}
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
