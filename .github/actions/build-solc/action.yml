@@ -55,9 +55,7 @@ runs:
         BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
-        export BOOST_ROOT=/c/a/era-solidity/era-solidity/boost/lib/cmake/Boost-${BOOST_VERSION}
-        mkdir -p ./build
-        cd ./build
+        export BOOST_ROOT=$(pwd)/boost/lib/cmake/Boost-${BOOST_VERSION}
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
@@ -66,14 +64,17 @@ runs:
           # COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT}"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
-        ls -la /c/a/era-solidity/era-solidity/boost
-        find /c/a/era-solidity/era-solidity/boost
 
-        pwd
         ls -la $(pwd)
+        ls -la $(pwd)/boost
+        ls -la $(pwd)/boost/lib
+        ls -la $(pwd)/boost/include/boost-1_74
 
+
+        mkdir -p ./build
+        cd ./build
         cmake .. \
-          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT} \
+          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT} -DBoost_LIB_DIR="$(pwd)/boost/lib" -DBoost_USE_STATIC_RUNTIME=1 -DBoost_USE_STATIC_LIBS=1 -DBoost_COMPILER=mgw14 -DBoost_INCLUDE_DIR="$(pwd)/boost/include/boost-1_74" \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
