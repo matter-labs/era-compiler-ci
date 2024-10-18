@@ -44,9 +44,10 @@ runs:
             ./bootstrap.sh --prefix=${PWD}/boost
           fi
         else
-          ./bootstrap.sh --prefix="C:\\a\\era-solidity\\era-solidity\\boost"
+          ./bootstrap.sh --prefix="/c/a/era-solidity/era-solidity/boost"
         fi
         ./b2 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
+        ls -la /c/a/era-solidity/era-solidity/boost
 
     - name: Build solc
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
