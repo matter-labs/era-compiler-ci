@@ -69,8 +69,8 @@ runs:
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
-        ls -la ${BOOST_ROOT}
-        find ${BOOST_ROOT}
+        ls -la ${PWD}/boost
+        find ${PWD}/boost
         cmake .. \
           -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
