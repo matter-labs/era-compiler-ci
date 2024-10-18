@@ -55,7 +55,7 @@ runs:
         BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
-        export BOOST_ROOT=${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}
+        export BOOST_ROOT=/c/a/era-solidity/era-solidity/boost/lib/cmake/Boost-${BOOST_VERSION}
         mkdir -p ./build
         cd ./build
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
@@ -66,8 +66,8 @@ runs:
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
-        ls -la ${PWD}/../boost
-        find ${PWD}/../boost
+        ls -la /c/a/era-solidity/era-solidity/boost
+        find /c/a/era-solidity/era-solidity/boost
         cmake .. \
           -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
