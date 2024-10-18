@@ -59,9 +59,9 @@ runs:
         # even with BOOST_COMPILER=mgw14, CMake still unable to find the libraries
         BOOST_VERSION=${BOOST_VERSION//./_}
         BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
-        BOOST_ROOT="$(pwd)/boost/lib/cmake/Boost-${BOOST_VERSION}"
-        BOOST_LIBDIR="$(pwd)/boost/lib"
-        BOOST_INCLUDEDIR="$(pwd)/boost/include/boost-${BOOST_SHORT_VERSION}"
+        BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
+        BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
+        BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
         BOOST_CMAKE_FLAGS="-DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
 
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
@@ -71,10 +71,12 @@ runs:
         if [ ${RUNNER_OS} = Windows ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
-          for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
-            mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
+          for file in ${BOOST_LIBDIR}/*.a; do
+            mv "$file" "${file%%-*}.a"
           done
         fi
+
+        ls -la ${BOOST_LIBDIR}
 
         mkdir -p ./build
         cd ./build
