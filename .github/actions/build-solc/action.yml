@@ -47,9 +47,6 @@ runs:
           ./bootstrap.sh --prefix="../boost"
         fi
         ./b2 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
-        pwd
-        ls -la
-        ls -la $PWD/boost
 
     - name: Build solc
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
@@ -69,8 +66,8 @@ runs:
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
-        ls -la ${PWD}/boost
-        find ${PWD}/boost
+        ls -la ${PWD}/../boost
+        find ${PWD}/../boost
         cmake .. \
           -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
