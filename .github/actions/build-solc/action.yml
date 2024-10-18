@@ -63,13 +63,17 @@ runs:
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
         if [ ${RUNNER_OS} = Windows ]; then
-          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14"
+          # COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT}"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
         fi
         ls -la /c/a/era-solidity/era-solidity/boost
         find /c/a/era-solidity/era-solidity/boost
+
+        pwd
+        ls -la $(pwd)
+
         cmake .. \
-          -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} \
+          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
