@@ -60,7 +60,7 @@ runs:
           PARALLEL=$(sysctl -n hw.ncpu)
           if [ ${RUNNER_ARCH} = X64 ]; then
             BOOST_VERSION=${BOOST_VERSION//./_}
-            BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
+            BOOST_SHORT_VERSION=${BOOST_VERSION%??}
             BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
             BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
             BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
@@ -76,7 +76,7 @@ runs:
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
           BOOST_VERSION=${BOOST_VERSION//./_}
-          BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
+          BOOST_SHORT_VERSION=${BOOST_VERSION%??}
           BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
           BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
           BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
