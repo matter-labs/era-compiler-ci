@@ -39,9 +39,9 @@ runs:
         tar xzf "${BOOST_FILENAME}.tar.gz" && cd ${BOOST_FILENAME}
         if [ ${RUNNER_OS} = macOS ]; then
           if [ ${RUNNER_ARCH} = X64 ]; then
-            ./bootstrap.sh --prefix=${PWD}/boost --with-python-version=2.7
+            ./bootstrap.sh --prefix=../boost --with-python-version=2.7
           else
-            ./bootstrap.sh --prefix=${PWD}/boost
+            ./bootstrap.sh --prefix=../boost
           fi
         else
           ./bootstrap.sh --prefix="../boost"
@@ -55,33 +55,31 @@ runs:
         BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
-        export BOOST_ROOT="$(pwd)/boost/lib/cmake/Boost-${BOOST_VERSION}"
+        # Rename boost libraries to match the expected names
+        # even with BOOST_COMPILER=mgw14, CMake still unable to find the libraries
+        BOOST_VERSION=${BOOST_VERSION//./_}
+        BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
+        BOOST_ROOT="$(pwd)/boost/lib/cmake/Boost-${BOOST_VERSION}"
         BOOST_LIBDIR="$(pwd)/boost/lib"
-        BOOST_INCLUDEDIR="$(pwd)/boost/include/boost-1_74"
-
-        for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-1_74.a; do
-          mv "$file" "${file%-mgw14-mt-s-x64-1_74.a}.a"
-        done
+        BOOST_INCLUDEDIR="$(pwd)/boost/include/boost-${BOOST_SHORT_VERSION}"
+        BOOST_CMAKE_FLAGS="-DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
 
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
         if [ ${RUNNER_OS} = Windows ]; then
-          # COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT}"
+          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
+          for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
+            mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
+          done
         fi
-
-        ls -la $(pwd)
-        ls -la $(pwd)/boost
-        ls -la $(pwd)/boost/lib
-        ls -la $(pwd)/boost/include/boost-1_74
-
 
         mkdir -p ./build
         cd ./build
         cmake .. \
-          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBoost_USE_STATIC_LIBS=1 -DBoost_COMPILER=mgw14 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1 \
+          -DCMAKE_BUILD_TYPE="Release" ${COMPILER_FLAGS} ${BOOST_CMAKE_FLAGS} \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
@@ -89,7 +87,6 @@ runs:
           -DUSE_Z3=OFF \
           -DUSE_CVC4=OFF \
           -DTESTS=0 \
-          -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 \
           -DSOLC_LINK_STATIC=1 \
           -DSTATIC_LINKING=1 \
           -DPEDANTIC=OFF ${{ inputs.extra-args}}
