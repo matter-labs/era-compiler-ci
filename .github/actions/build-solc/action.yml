@@ -58,6 +58,11 @@ runs:
         export BOOST_ROOT="$(pwd)/boost/lib/cmake/Boost-${BOOST_VERSION}"
         BOOST_LIBDIR="$(pwd)/boost/lib"
         BOOST_INCLUDEDIR="$(pwd)/boost/include/boost-1_74"
+
+        for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-1_74.a; do
+          mv "$file" "${file%-mgw14-mt-s-x64-1_74.a}.a"
+        done
+
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
