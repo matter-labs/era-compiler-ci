@@ -44,6 +44,7 @@ runs:
             ./bootstrap.sh --prefix=${PWD}/boost
           fi
         else
+          # Only relative boost prefix is working on Windows MSYS2
           ./bootstrap.sh --prefix="../boost"
         fi
         ./b2 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
