@@ -63,7 +63,7 @@ runs:
             BOOST_SHORT_VERSION=${BOOST_VERSION%??}
             BOOST_ROOT="${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}"
             BOOST_LIBDIR="${PWD}/boost/lib"
-            BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
+            BOOST_INCLUDEDIR="${PWD}/boost/include"
             BOOST_CMAKE_FLAGS="-DBoost_COMPILER=clang -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
             #cd ${BOOST_LIBDIR}
             #for BOOST_LIB in lib*.a; do
