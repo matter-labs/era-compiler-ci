@@ -68,7 +68,7 @@ runs:
         fi
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
-          PARALLEL=$(sysctl -n hw.ncpu)
+          PARALLEL=$(nproc)
           BOOST_VERSION=${BOOST_VERSION//./_}
           BOOST_ROOT="${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}"
           BOOST_LIBDIR="${PWD}/boost/lib"
@@ -85,9 +85,6 @@ runs:
           BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
           BOOST_CMAKE_FLAGS="-DBoost_COMPILER="-mgw14" -DBoost_ARCHITECTURE="-x64" -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
         fi
-
-        ls -la ${BOOST_LIBDIR}
-
         mkdir -p ./build
         cd ./build
         cmake .. \
