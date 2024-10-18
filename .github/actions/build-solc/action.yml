@@ -57,15 +57,15 @@ runs:
         set -x
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         if [ ${RUNNER_OS} = Linux ]; then
-          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
+          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
         fi
         if [ ${RUNNER_OS} = Windows ]; then
-          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF"
+          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
           # Rename boost libraries to match the expected names
           # even with BOOST_COMPILER=mgw14, CMake still unable to find the libraries
-          for file in ${BOOST_LIBDIR}/*.a; do
-            mv "$file" "${file%%-*}.a"
+          for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
+            mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
           done
           BOOST_VERSION=${BOOST_VERSION//./_}
           BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
@@ -84,7 +84,6 @@ runs:
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
-          -DCMAKE_CXX_FLAGS=-fuse-ld=lld \
           -DUSE_Z3=OFF \
           -DUSE_CVC4=OFF \
           -DTESTS=0 \
