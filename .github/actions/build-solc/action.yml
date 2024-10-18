@@ -39,9 +39,9 @@ runs:
         tar xzf "${BOOST_FILENAME}.tar.gz" && cd ${BOOST_FILENAME}
         if [ ${RUNNER_OS} = macOS ]; then
           if [ ${RUNNER_ARCH} = X64 ]; then
-            ./bootstrap.sh --prefix=${PWD}/boost --with-python-version=2.7
+            ./bootstrap.sh --prefix=${PWD}/../boost --with-python-version=2.7
           else
-            ./bootstrap.sh --prefix=${PWD}/boost
+            ./bootstrap.sh --prefix=${PWD}/../boost
           fi
         else
           # Only relative boost prefix is working on Windows MSYS2
@@ -56,24 +56,36 @@ runs:
         BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
-        [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
+        if [ ${RUNNER_OS} = macOS ]; then
+          PARALLEL=$(sysctl -n hw.ncpu)
+          if [ ${RUNNER_ARCH} = X64 ]; then
+            BOOST_VERSION=${BOOST_VERSION//./_}
+            BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
+            BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
+            BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
+            BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
+            BOOST_CMAKE_FLAGS="-DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
+          fi
+        else
+          PARALLEL=$(nproc)
+        fi
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
         fi
         if [ ${RUNNER_OS} = Windows ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
           export LDFLAGS='-lbcrypt -lwsock32 -static'
-          # Rename boost libraries to match the expected names
-          # even with BOOST_COMPILER=mgw14, CMake still unable to find the libraries
-          for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
-            mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
-          done
           BOOST_VERSION=${BOOST_VERSION//./_}
           BOOST_SHORT_VERSION=${BOOST_VERSION::-2}
           BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
           BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
           BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
           BOOST_CMAKE_FLAGS="-DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
+          # Rename boost libraries to match the expected names
+          # even with BOOST_COMPILER=mgw14, CMake still unable to find the libraries
+          for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
+            mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
+          done
         fi
 
         ls -la ${BOOST_LIBDIR}
