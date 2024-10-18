@@ -61,15 +61,17 @@ runs:
           if [ ${RUNNER_ARCH} = X64 ]; then
             BOOST_VERSION=${BOOST_VERSION//./_}
             BOOST_SHORT_VERSION=${BOOST_VERSION%??}
-            BOOST_ROOT="${GITHUB_WORKSPACE}/boost/lib/cmake/Boost-${BOOST_VERSION}"
-            BOOST_LIBDIR="${GITHUB_WORKSPACE}/boost/lib"
-            BOOST_INCLUDEDIR="${GITHUB_WORKSPACE}/boost/include/boost-${BOOST_SHORT_VERSION}"
+            BOOST_ROOT="${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}"
+            BOOST_LIBDIR="${PWD}/boost/lib"
+            BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
             BOOST_CMAKE_FLAGS="-DBoost_COMPILER=clang -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
-            cd ${BOOST_LIBDIR}
-            for BOOST_LIB in lib*.a; do
-              mv "${BOOST_LIB}" "${BOOST_LIB#lib}"
-            done
-            cd -
+            #cd ${BOOST_LIBDIR}
+            #for BOOST_LIB in lib*.a; do
+            #  mv "${BOOST_LIB}" "${BOOST_LIB#lib}"
+            #done
+            #cd -
+            find ${PWD}/boost
+            ls -la ${BOOST_INCLUDEDIR}
           fi
         else
           PARALLEL=$(nproc)
