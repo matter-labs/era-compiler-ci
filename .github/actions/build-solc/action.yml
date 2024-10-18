@@ -44,10 +44,10 @@ runs:
             ./bootstrap.sh --prefix=${PWD}/boost
           fi
         else
-          ./bootstrap.sh --prefix="/c/a/era-solidity/era-solidity/boost"
+          ./bootstrap.sh --prefix="/c/Users/runneradmin/boost"
         fi
         ./b2 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
-        ls -la /c/a/era-solidity/era-solidity/boost
+        ls -la /c/Users/runneradmin/boost
 
     - name: Build solc
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
@@ -60,7 +60,7 @@ runs:
         cd ./build
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         ls -la ${PWD}/..
-        export BOOST_ROOT=${PWD}/../boost/lib/cmake/Boost-${BOOST_VERSION}
+        export BOOST_ROOT=/c/Users/runneradmin/boost/lib/cmake/Boost-${BOOST_VERSION}
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
