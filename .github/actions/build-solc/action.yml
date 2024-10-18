@@ -80,12 +80,7 @@ runs:
           BOOST_ROOT="${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}"
           BOOST_LIBDIR="${PWD}/boost/lib"
           BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
-          BOOST_CMAKE_FLAGS="-DBOOST_COMPILER="-mgw14" -DBoost_ARCHITECTURE="-x64" -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
-          # Rename boost libraries to match the expected names
-          # even with BOOST_COMPILER=-mgw14, CMake still unable to find the libraries
-          #for file in ${BOOST_LIBDIR}/*-mgw14-mt-s-x64-${BOOST_SHORT_VERSION}.a; do
-          #  mv "$file" "${file%-mgw14-mt-s-x64-$BOOST_SHORT_VERSION.a}.a"
-          #done
+          BOOST_CMAKE_FLAGS="-DBoost_COMPILER="-mgw14" -DBoost_ARCHITECTURE="-x64" -DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBOOST_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
         fi
 
         ls -la ${BOOST_LIBDIR}
