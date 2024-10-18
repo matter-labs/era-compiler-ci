@@ -58,11 +58,10 @@ runs:
         BOOST_VERSION: ${{ inputs.boost-version }}
       run: |
         set -x
+        export BOOST_ROOT=${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}
         mkdir -p ./build
         cd ./build
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
-        ls -la ${PWD}/..
-        export BOOST_ROOT=${PWD}/boost/lib/cmake/Boost-${BOOST_VERSION}
         if [ ${RUNNER_OS} = Linux ]; then
           COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
         fi
