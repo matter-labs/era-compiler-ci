@@ -76,7 +76,7 @@ runs:
         mkdir -p ./build
         cd ./build
         cmake .. \
-          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT} -DBoost_LIB_DIR="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBoost_USE_STATIC_LIBS=1 -DBoost_COMPILER=mgw14 -DBoost_INCLUDE_DIR="${BOOST_INCLUDEDIR}" \
+          -DCMAKE_BUILD_TYPE="Release" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DBoost_COMPILER=mgw14 -DBoost_ROOT=${BOOST_ROOT} -DBoost_LIBRARY_DIRS:FILEPATH="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBoost_USE_STATIC_LIBS=1 -DBoost_COMPILER=mgw14 -DBoost_INCLUDE_DIR="${BOOST_INCLUDEDIR}" \
           -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
           -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
