@@ -1,0 +1,119 @@
+name: 'Deploy mdbook docs'
+description: 'GitHub Action to automatically build, test and deploy a versioned mdBook project to GitHub Pages.'
+branding:
+  icon: 'book'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for deployment.'
+    required: true
+  version:
+    type: string
+    description: "Version of the documentation to deploy"
+    required: false
+    default: "latest"
+  docs-dir:
+    type: string
+    description: "Directory containing the mdbook documentation"
+    required: false
+    default: "docs"
+  mdbook-version:
+    type: string
+    description: "Version of mdbook to use"
+    required: false
+    default: "latest"
+  enable-tests:
+    type: boolean
+    description: "Disable mdbook tests"
+    required: false
+    default: true
+  books-outdir:
+    type: string
+    description: "Directory to store the built books"
+    required: false
+    default: "mdbooks"
+
+runs:
+  using: composite
+  steps:
+
+    - name: Check runner OS
+      if: runner.os != 'Linux'
+      shell: 'bash -ex {0}'
+      run: |
+        echo "::error title=⛔ error hint::Only Linux is supported for this action."
+        exit 1
+
+    - name: Install latest mdbook
+      shell: 'bash -ex {0}'
+      env:
+        MDBOOK_LATEST_API: "https://api.github.com/repos/rust-lang/mdbook/releases/${{ inputs.mdbook-version || 'latest' }}"
+        MDBOOK_DOWNLOAD_URL: "https://github.com/rust-lang/mdbook/releases/download"
+      run: |
+        echo "::group::Install mdbook"
+        TAG=$(curl "${MDBOOK_LATEST_API}" | jq -r .tag_name)
+        URL="${MDBOOK_DOWNLOAD_URL}/${TAG}/mdbook-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
+        MDBOOK_INSTALL_DIR="${PWD}/.mdbook_$(date +%s)"
+        mkdir -p "${MDBOOK_INSTALL_DIR}"
+        curl -sSL "${URL}" | tar -xz --directory="${MDBOOK_INSTALL_DIR}"
+        echo "${MDBOOK_INSTALL_DIR}" >> "${GITHUB_PATH}"
+        echo "::endgroup::"
+
+    - name: Build Book
+      shell: 'bash -ex {0}'
+      working-directory: ${{ inputs.docs-dir }}
+      id: build-book
+      run: |
+        echo "::group::Building the book"
+        if [ ${{ inputs.version }} == ${{ github.event.repository.default_branch }} ] || [ ${{ inputs.version }} == 'latest' ]; then
+          DEST_DIR=latest
+        else
+          DEST_DIR=${{ inputs.version }}
+        fi
+        echo destination_dir=${DEST_DIR} >> "${GITHUB_OUTPUT}"
+        mdbook build --dest-dir=${{ inputs.books-outdir }}/${DEST_DIR}
+        echo "::endgroup::"
+
+    - name: Test Book
+      if: inputs.enable-tests
+      shell: 'bash -ex {0}'
+      working-directory: ${{ inputs.docs-dir }}
+      run: |
+        echo "::group::Testing the book"
+        mdbook test
+        echo "::endgroup::"
+
+    - name: Deploy book
+      shell: 'bash -ex {0}'
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        MDBOOK_DEST_DIR: ${{ steps.build-book.outputs.destination_dir }}
+      run: |
+        # Check if the gh-pages branch exists
+        if [ $(gh api "/repos/${GITHUB_REPOSITORY}/branches/gh-pages" > /dev/null 2>&1; echo $?) -eq 1 ]; then
+          git checkout --orphan gh-pages
+        else
+          git fetch origin gh-pages
+          git checkout gh-pages
+        fi
+        # Remove the previous version of the book
+        rm -rf ${MDBOOK_DEST_DIR}
+        # Move the new version of the book
+        mv "${{ inputs.docs-dir }}/${{ inputs.books-outdir }}/${MDBOOK_DEST_DIR}" "${MDBOOK_DEST_DIR}"
+        # Add the new version of the book
+        git config user.name "Deploy from CI"
+        git config user.email ""
+        git add "${MDBOOK_DEST_DIR}"
+        git commit --amend -m "Deploy ${GITHUB_SHA} to gh-pages"
+        git push --force --set-upstream origin gh-pages
+
+    # - name: Deploy Book
+    #   uses: peaceiris/actions-gh-pages@v4
+    #   with:
+    #     github_token: ${{ inputs.github-token }}
+    #     publish_dir: ${{ inputs.docs-dir }}/${{ inputs.books-outdir }}/${{ steps.build-book.outputs.destination_dir }}
+    #     destination_dir: ${{ steps.build-book.outputs.destination_dir }}
+    #     publish_branch: gh-pages
+    #     keep_files: true # to allow deployment of multiple versions
+    #     force_orphan: false # Set to true after https://github.com/peaceiris/actions-gh-pages/issues/455 is fixed

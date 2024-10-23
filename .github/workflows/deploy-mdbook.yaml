@@ -1,0 +1,107 @@
+name: Deploy mdbook docs
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        description: "Version of the documentation to deploy"
+        required: false
+        default: "latest"
+      docs-dir:
+        type: string
+        description: "Directory containing the mdbook documentation"
+        required: false
+        default: "docs"
+      mdbook-version:
+        type: string
+        description: "Version of mdbook to use"
+        required: false
+        default: "latest"
+      disable-tests:
+        type: boolean
+        description: "Disable mdbook tests"
+        required: false
+        default: false
+
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    env:
+      BOOKS_OUTDIR: mdbooks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install latest mdbook
+        env:
+          MDBOOK_LATEST_API: "https://api.github.com/repos/rust-lang/mdbook/releases/${{ inputs.mdbook-version || 'latest' }}"
+          MDBOOK_DOWNLOAD_URL: "https://github.com/rust-lang/mdbook/releases/download"
+        run: |
+          TAG=$(curl "${MDBOOK_LATEST_API}" | jq -r .tag_name)
+          URL="${MDBOOK_DOWNLOAD_URL}/${TAG}/mdbook-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
+          MDBOOK_INSTALL_DIR=${PWD}/mdbook_$(date +%s)
+          mkdir -p "${MDBOOK_INSTALL_DIR}"
+          curl -sSL ${URL} | tar -xz --directory=${MDBOOK_INSTALL_DIR}
+          echo "${MDBOOK_INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Get previous deployment artifact id
+        id: previous-deployment
+        run: |
+          echo run_id=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=1" | \
+            jq -r '.artifacts[0].workflow_run.id') >> "${GITHUB_OUTPUT}"
+
+      - name: Download previous deployment archive
+        if: ${{ steps.previous-deployment.outputs.run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ inputs.docs-dir }}/${{ env.BOOKS_OUTDIR }}
+          run-id: ${{ steps.previous-deployment.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-multiple: true
+
+      - name: Unpack previous version
+        if: ${{ steps.previous-deployment.outputs.run_id != '' }}
+        env:
+          ARTIFACT_NAME: artifact.tar
+        working-directory: ${{ inputs.docs-dir }}/${{ env.BOOKS_OUTDIR }}
+        run: tar xf "${ARTIFACT_NAME}" && rm -f "${ARTIFACT_NAME}" && ls -la
+
+      - name: Build Book
+        working-directory: ${{ inputs.docs-dir }}
+        run: |
+          find .
+          if [ ${{ inputs.version }} == 'main' ] || [ ${{ inputs.version }} == 'latest' ]; then
+            mdbook build --dest-dir=${BOOKS_OUTDIR}/latest
+          else
+            mdbook build --dest-dir=${BOOKS_OUTDIR}/${{ inputs.version }}
+          fi
+          find .
+
+      - name: Test Book
+        if: ${{ !inputs.disable-tests }}
+        working-directory: ${{ inputs.docs-dir }}
+        run: mdbook test
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '${{ inputs.docs-dir }}/${{ env.BOOKS_OUTDIR }}'
+          retention-days: 90 # Max is 90 days for now, but it can be increased
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
