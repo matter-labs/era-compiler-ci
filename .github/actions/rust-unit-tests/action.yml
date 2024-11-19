@@ -49,6 +49,7 @@ runs:
         if [ '${{ inputs.sanitizer }}' != '' ]; then
           rustup component add rust-src --toolchain "$(rustc --version | cut -d ' ' -f2)-${TARGET}"
           export RUSTFLAGS="${RUSTFLAGS} -Z sanitizer=${{ inputs.sanitizer }}"
+          export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
         fi
         TEST_COMMAND="test"
         if [ '${{ inputs.enable-coverage }}' = 'true' ]; then
@@ -71,6 +72,11 @@ runs:
       env:
         RUSTC_BOOTSTRAP: 1
       run: |
+        if [ '${{ inputs.sanitizer }}' != '' ]; then
+          rustup component add rust-src --toolchain "$(rustc --version | cut -d ' ' -f2)-${TARGET}"
+          export RUSTFLAGS="${RUSTFLAGS} -Z sanitizer=${{ inputs.sanitizer }}"
+          export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
+        fi
         # Use LLD on Windows to properly link with libstdc++.
         if [ ${RUNNER_OS} = Windows ]; then
           export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
