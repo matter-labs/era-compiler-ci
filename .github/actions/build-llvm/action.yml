@@ -87,7 +87,8 @@ runs:
 
     - name: Install LLVM builder
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
-      run: cargo install compiler-llvm-builder@${{ inputs.llvm-builder-version }}
+      run: |
+        cargo install compiler-llvm-builder --git https://github.com/matter-labs/era-compiler-llvm-builder --branch aba-support-sccache
 
     - name: Clone LLVM framework
       if: inputs.clone-llvm == 'true'
@@ -141,6 +142,7 @@ runs:
         max-size: "2G"
         verbose: 2
         save: ${{ steps.ccache-save.outputs.save }}
+        variant: "sccache"
 
     # CCACHE_BASEDIR, CCACHE_NOHASHDIR, and CCACHE_COMPILERCHECK
     # are allowing to cache compiler output across different
@@ -169,4 +171,4 @@ runs:
         fi
 
         zksync-llvm build --target-env ${{ inputs.target-env }} ${DEFAULT_TARGET} --build-type ${{ inputs.build-type }} \
-          --use-ccache ${{ inputs.builder-extra-args }} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
+          --use-ccache ${{ inputs.builder-extra-args }} --ccache-variant=sccache ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
