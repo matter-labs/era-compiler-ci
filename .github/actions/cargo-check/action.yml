@@ -22,7 +22,7 @@ runs:
 
 
     - name: Cargo deny
-      uses: EmbarkStudios/cargo-deny-action@v1
+      uses: EmbarkStudios/cargo-deny-action@v2
       with:
         # Save cache only on push events
         save-if: ${{ github.event_name == 'push' && github.ref_type != 'tag' }}
