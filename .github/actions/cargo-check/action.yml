@@ -17,9 +17,8 @@ runs:
     - name: Rust cache
       uses: Swatinem/rust-cache@v2
       with:
-        shared-key: "rust-cargo-cache"
+        shared-key: "rust-cargo-cache-${{ runner.os }}-${{ runner.arch }}"
         save-if: ${{ github.ref == 'refs/heads/main' }}
-
 
     - name: Cargo deny
       uses: EmbarkStudios/cargo-deny-action@v2
