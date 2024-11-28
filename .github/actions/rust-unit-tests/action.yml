@@ -35,7 +35,7 @@ runs:
 
     - name: Rust cache
       if: ${{ !(runner.os == 'macOS' && runner.arch == 'arm64') }}
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@v1
       with:
         shared-key: "rust-cargo-cache-${{ runner.os }}-${{ runner.arch }}"
         save-if: ${{ github.ref == 'refs/heads/main' }}
