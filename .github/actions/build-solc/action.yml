@@ -31,7 +31,7 @@ runs:
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
       env:
         BOOST_VERSION: ${{ inputs.boost-version }}
-        BOOST_DOWNLOAD_URL: "https://boostorg.jfrog.io/artifactory/main/release/${{ inputs.boost-version }}/source"
+        BOOST_DOWNLOAD_URL: "https://archives.boost.io/release/${{ inputs.boost-version }}/source"
       run: |
         [ ${RUNNER_OS} = macOS ] && PARALLEL=$(sysctl -n hw.ncpu) || PARALLEL=$(nproc)
         BOOST_FILENAME=boost_${BOOST_VERSION//./_}
