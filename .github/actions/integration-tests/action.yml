@@ -36,7 +36,12 @@ runs:
 
     - name: Build compiler-tester
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
-      run: cargo build --release --bin 'compiler-tester'
+      run: |
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
+        cargo build --release --bin 'compiler-tester'
 
     - name: Build zksolc
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
@@ -47,6 +52,10 @@ runs:
         # it is required to workaround the case when multiple zksolc versions are cloned
         # e.g. on self-hosted runners
         ZKSOLC_VERSION=$(cargo tree --frozen --depth 1 --format {p} | grep -m 1 era-compiler-solidity | sed -n 's/.*#\([0-9a-f]\{7\}\).*/\1/p')
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
         cargo build --release \
           --manifest-path ${CARGO_HOME}/git/checkouts/era-compiler-solidity-*/${ZKSOLC_VERSION}/Cargo.toml \
           --target-dir './target-zksolc/'
@@ -61,6 +70,10 @@ runs:
         # it is required to workaround the case when multiple zkvyper versions are cloned
         # e.g. on self-hosted runners
         ZKVYPER_VERSION=$(cargo tree --frozen --depth 1 --format {p} | grep -m 1 era-compiler-vyper | sed -n 's/.*#\([0-9a-f]\{7\}\).*/\1/p')
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
         cargo build --release \
           --manifest-path ${CARGO_HOME}/git/checkouts/era-compiler-vyper-*/${ZKVYPER_VERSION}/Cargo.toml \
           --target-dir './target-zkvyper/'
