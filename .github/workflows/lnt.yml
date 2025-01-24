@@ -1,0 +1,157 @@
+name: LNT benchmarks
+
+on:
+  workflow_call:
+    inputs:
+      compiler_tester_branch:
+        type: string
+        description: "compiler-tester branch to use as a benchmark candidate"
+        required: false
+        default: "main"
+      compiler_llvm_branch:
+        type: string
+        description: "compiler-llvm branch to use as a benchmark candidate"
+        required: false
+        default: "main"
+      ccache-key:
+        type: string
+        description: 'Github Actions cache key for CCache.'
+        required: false
+        default: ''
+      ccache-key-type:
+        type: string
+        required: false
+        default: 'dynamic'
+        description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
+      compiler-tester-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-tester'
+        description: 'Compiler tester repository to use. Required for forks testing.'
+      compiler-llvm-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-llvm'
+        description: 'Compiler LLVM repository to use. Required for forks testing.'
+
+jobs:
+
+  lnt-benchmarks:
+    name: LNT benchmarks
+    runs-on: matterlabs-ci-runner-high-performance
+    container:
+      image: ghcr.io/matter-labs/zksync-llvm-runner:latest
+      options: -m 110g
+    steps:
+      - name: Define branches
+        shell: bash -ex {0}
+        id: define-branches
+        run: |
+          echo "compiler-tester-branch=${{ inputs.compiler_tester_branch || github.head_ref }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "llvm-branch=${{ inputs.compiler_llvm_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "compiler-tester-repo=${{ inputs.compiler-tester-repo || github.event.pull_request.head.repo.full_name }}" | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Checkout compiler-tester
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.define-branches.outputs.compiler-tester-repo }}
+          ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
+          submodules: recursive
+
+      - name: Checkout LLVM
+        if: steps.define-branches.outputs.llvm-branch != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.compiler-llvm-repo }}
+          ref: ${{ steps.define-branches.outputs.llvm-branch }}
+          path: llvm
+
+      # An issue prevents to correctly use the same version of composite actions from `workflow_call`
+      # https://github.com/actions/toolkit/issues/1264
+      # for now, it will always be taken from the latest main
+      - name: Build LLVM
+        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
+        with:
+          clone-llvm: ${{ steps.define-branches.outputs.llvm-branch == '' && 'true' || 'false' }}
+          enable-assertions: true
+          ccache-key-type: ${{ inputs.ccache-key-type }}
+          ccache-key: ${{ inputs.ccache-key }}
+
+      - name: Build compiler-tester
+        run: cargo build --verbose --release --bin 'compiler-tester'
+
+      - name: Build compilers
+        env:
+          CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
+        run: |
+          cargo build --verbose --release \
+            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-solidity-*/*/Cargo.toml \
+            --target-dir './target-zksolc/'
+          cargo build --verbose --release \
+            --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
+            --target-dir './target-zkvyper/'
+
+      - name: Run benchmarks LNT
+        shell: bash -ex {0}
+        run: |
+          ZKSOLC_OUTPUT=$(./target-zksolc/release/zksolc --version)
+          ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
+          LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
+
+          for MODE in Y+M3B3 Y+MzB3 E+M3B3 E+MzB3; do
+            for TOOLCHAIN in ir-llvm; do
+              # Create a context file
+              echo "{
+                \"machine\": \"llvm_eravm_${TOOLCHAIN}_${MODE}\",
+                \"target\": \"eravm\",
+                \"toolchain\": \"${TOOLCHAIN}\",
+                \"zksolc_version\": \"${ZKSOLC_VERSION}\",
+                \"llvm_version\": \"${LLVM_VERSION}\"
+              }" > context.json
+              # Run benchmarks
+              ./target/release/compiler-tester \
+                --zksolc ./target-zksolc/release/zksolc \
+                --target eravm \
+                --path 'solidity' \
+                --mode "${MODE}" \
+                --toolchain "${TOOLCHAIN}" \
+                --benchmark results_llvm_eravm_${TOOLCHAIN}_${MODE} \
+                --benchmark-format json-lnt \
+                --benchmark-context context.json || true
+            done
+          done
+
+          # for MODE in Y+M3B3 Y+MzB3; do
+          #   for TOOLCHAIN in solc ir-llvm; do
+          #     for ENV in REVM EVMInterpreter; do
+          #       # Create a context file
+          #       echo "{
+          #         \"machine\": \"llvm_evm_${TOOLCHAIN}_${MODE}_${ENV}\",
+          #         \"target\": \"evm\",
+          #         \"environment\": \"${ENV}\",
+          #         \"toolchain\": \"${TOOLCHAIN}\",
+          #         \"zksolc_version\": \"${ZKSOLC_VERSION}\",
+          #         \"llvm_version\": \"${LLVM_VERSION}\"
+          #       }" > context.json
+          #       # Run benchmarks
+          #       ./target/release/compiler-tester \
+          #         --zksolc ./target-zksolc/release/zksolc \
+          #         --target evm \
+          #         --path 'solidity' \
+          #         --mode "${MODE}" \
+          #         --toolchain "${TOOLCHAIN}" \
+          #         --environment "${ENV}" \
+          #         --benchmark results_llvm_evm_${TOOLCHAIN}_${MODE}_${ENV} \
+          #         --benchmark-format json-lnt \
+          #         --benchmark-context context.json || true
+          #     done
+          #   done
+          # done
+
+          find results* -name '*.json'
+
+          head -n 20 ./results_llvm_eravm_ir-llvm_Y+M3B3/llvm_eravm_ir-llvm_Y+M3B3-Y+M3B3.json
+
+          lnt submit --ignore-regressions \
+            http://llvm-int.llvm-int.svc.cluster.local:8000/db_default/v4/zksync/submitRun \
+            ./results_llvm_eravm_ir-llvm_Y+M3B3/llvm_eravm_ir-llvm_Y+M3B3-Y+M3B3.json

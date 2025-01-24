@@ -168,47 +168,6 @@ jobs:
           echo "Testing with custom solc from run ${{ inputs.custom-solc-run-id }}"
           echo $(./solc-bin/solc-${{ inputs.custom-solc-version}} --version)
 
-      - name: Run benchmarks LNT
-        shell: bash -ex {0}
-        if: ${{ inputs.lnt-mode || inputs.lnt-mode == 'true' }}
-        run: |
-          # Generate context.json
-          ZKSOLC_OUTPUT=$(./target-zksolc/release/zksolc --version)
-          ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
-          LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
-          if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
-            TOOLCHAIN_NAME="solc"
-          else
-            TOOLCHAIN_NAME="llvm_ir"
-          fi
-          echo '{
-            "machine": "llvm-${{ inputs.target-machine }}-${TOOLCHAIN_NAME}-test",
-            "target": "${{ inputs.target-machine }}",
-            "toolchain": "llvm_ir",
-            "zksolc_version": "${ZKSOLC_VERSION}",
-            "llvm_version": "${LLVM_VERSION}"
-          }' > context.json
-          MODE="${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}"
-          if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
-            TARGET="--target ${{ inputs.target-machine }}"
-            # Always use upstream solc for EVM target for now
-            if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
-              TOOLCHAIN="--toolchain solc"
-              MODE="^"
-            fi
-          fi
-          ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} \
-            --zksolc './target-zksolc/release/zksolc' \
-            --zkvyper './target-zkvyper/release/zkvyper' \
-            --path='solidity/complex' \
-            --mode="Y+M3B3" \
-            --benchmark=lnt \
-            --benchmark-format json-lnt \
-            --benchmark-context context.json
-
-          cat ./lnt/*.json
-
-
       - name: Run benchmarks
         shell: bash -ex {0}
         run: |
