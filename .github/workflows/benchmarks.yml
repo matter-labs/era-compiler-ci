@@ -3,11 +3,6 @@ name: Benchmarks
 on:
   workflow_call:
     inputs:
-      llvm_build_type:
-        type: string
-        description: "LLVM build type: debug | release"
-        required: false
-        default: "release"
       compiler_tester_reference_branch:
         type: string
         description: "compiler-tester branch to use as a benchmark reference"
@@ -38,6 +33,11 @@ on:
         description: "Path filter for compiler-llvm benchmarks"
         required: false
         default: ""
+      ccache-key:
+        type: string
+        description: 'Github Actions cache key for CCache.'
+        required: false
+        default: ''
       ccache-key-type:
         type: string
         required: false
@@ -119,7 +119,9 @@ jobs:
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
           clone-llvm: ${{ steps.define-branches.outputs.llvm-branch == '' && 'true' || 'false' }}
-          enable-assertions: true
+          enable-assertions: false
+          build-type: 'Release'
+          ccache-key: ${{ inputs.ccache-key }}
           ccache-key-type: ${{ inputs.ccache-key-type }}
 
       - name: Build compiler-tester
