@@ -68,6 +68,17 @@ on:
         required: false
         default: 'eravm'
         description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`.'
+      toolchain:
+        type: string
+        required: false
+        default: ''
+        description: 'Toolchain passed via `--toolchain` for era-compiler-tester. Available arguments: `ir-llvm`, `solc`, `mlir-llvm`.'
+      environment:
+        type: string
+        required: false
+        default: ''
+        description: 'Environment passed via `--environment` for era-compiler-tester. Available arguments: `EVMInterpreter`, `REVM`.'
+
 
 jobs:
 
@@ -76,7 +87,7 @@ jobs:
       fail-fast: false
       matrix:
         type: ["reference", "candidate"]
-    name: ${{ inputs.target-machine}} ${{ matrix.type }}
+    name: ${{ inputs.target-machine}} ${{ matrix.type }} ${{ inputs.toolchain }}
     runs-on: matterlabs-ci-runner-high-performance
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
@@ -160,27 +171,32 @@ jobs:
       - name: Run benchmarks
         shell: bash -ex {0}
         run: |
-          MODE="${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}"
+          MODE="${{ inputs.compiler_llvm_benchmark_mode || 'Y+M^B3' }}"
           if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
             TARGET="--target ${{ inputs.target-machine }}"
-            # Always use upstream solc for EVM target for now
-            if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
-              TOOLCHAIN="--toolchain solc"
+          fi
+          if [[ -n "${{ inputs.toolchain }}" ]]; then
+            TOOLCHAIN="--toolchain ${{ inputs.toolchain }}"
+            if [[ "${{ inputs.toolchain }}" == "solc" ]]; then
               MODE="^"
             fi
           fi
-          ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} \
+          if [[ -n "${{ inputs.environment }}" ]]; then
+            ENVIRONMENT="--environment ${{ inputs.environment }}"
+          fi
+
+          ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${ENVIRONMENT} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
-            --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
             --mode="${MODE}" \
-            --benchmark=${{ inputs.target-machine }}-${{ matrix.type }}.json
+            --path=${{ inputs.compiler_llvm_benchmark_path || '' }} \
+            --benchmark=${{ inputs.target-machine }}-${{ matrix.type }}-${{ inputs.toolchain }}-${{ inputs.environment }}.json || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: compiler-llvm-${{ inputs.target-machine }}-${{ matrix.type }}-benchmark
-          path: ${{ inputs.target-machine }}-${{ matrix.type }}.json
+          name: compiler-llvm-${{ inputs.target-machine }}-${{ matrix.type }}-${{ inputs.toolchain }}-${{ inputs.environment }}-benchmark
+          path: ${{ inputs.target-machine }}-${{ matrix.type }}-${{ inputs.toolchain }}-${{ inputs.environment }}.json
 
   analysis:
     name: "Benchmark comparison"
@@ -190,7 +206,7 @@ jobs:
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
     needs: benchmarks
-    if: ${{ (failure() || success()) && inputs.target-machine != 'evm' }}
+    if: ${{ (failure() || success()) }}
     steps:
       - name: Checking out the compiler-tester repository
         uses: actions/checkout@v4
@@ -207,13 +223,14 @@ jobs:
       - name: Comparing the LLVM framework benchmark results
         run: |
           cargo run --release --bin benchmark-analyzer -- \
-            --reference ${{ inputs.target-machine }}-reference.json \
-            --candidate ${{ inputs.target-machine }}-candidate.json \
+            --reference ${{ inputs.target-machine }}-reference-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
+            --candidate ${{ inputs.target-machine }}-candidate-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
             --output-file result.txt
 
       - name: Posting the LLVM benchmark results to the summary
         run: |
           echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          echo 'Results for: ${{ inputs.target-machine }} ${{ inputs.toolchain }} ${{ inputs.environment }}' | tee -a $GITHUB_STEP_SUMMARY
           cat result.txt | tee -a $GITHUB_STEP_SUMMARY
           echo '```' | tee -a $GITHUB_STEP_SUMMARY
           cat $GITHUB_STEP_SUMMARY > result.txt
@@ -223,3 +240,4 @@ jobs:
         uses: mshick/add-pr-comment@v2
         with:
           message-path: result.txt
+          message-id: '${{ inputs.target-machine }}-${{ inputs.toolchain }}-${{ inputs.environment }}'
