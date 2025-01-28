@@ -47,9 +47,8 @@ jobs:
       - name: Checkout LNT
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/llvm-lnt
+          repository: llvm/llvm-lnt
           path: lnt
-          ref: main
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -177,5 +176,5 @@ jobs:
           head -n 20 ./results_llvm_eravm_ir-llvm_Y+M3B3/llvm_eravm_ir-llvm_Y+M3B3-Y+M3B3.json
 
           lnt submit --ignore-regressions \
-            http://llvm-int.llvm-int.svc.cluster.local:8000/db_default/v4/zksync/submitRun \
+            http://llvm-lnt.infra.matterlabs.corp/db_default/v4/zksync/submitRun \
             ./results_llvm_eravm_ir-llvm_Y+M3B3/llvm_eravm_ir-llvm_Y+M3B3-Y+M3B3.json
