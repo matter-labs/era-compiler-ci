@@ -43,6 +43,30 @@ jobs:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
     steps:
+
+      - name: Checkout LNT
+        uses: actions/checkout@v4
+        with:
+          repository: matter-labs/llvm-lnt
+          path: lnt
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install LNT
+        run: |
+          cd lnt && pip install .
+          which lnt
+          lnt --version
+
+      - name: Check LNT
+        run: |
+          which lnt
+          lnt --version
+
       - name: Define branches
         shell: bash -ex {0}
         id: define-branches
