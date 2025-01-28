@@ -171,7 +171,7 @@ jobs:
       - name: Run benchmarks
         shell: bash -ex {0}
         run: |
-          MODE="${{ inputs.compiler_llvm_benchmark_mode || 'Y+M^B3' }}"
+          MODE="${{ inputs.compiler_llvm_benchmark_mode || '^M^B3' }}"
           if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
             TARGET="--target ${{ inputs.target-machine }}"
           fi
@@ -183,6 +183,10 @@ jobs:
           fi
           if [[ -n "${{ inputs.environment }}" ]]; then
             ENVIRONMENT="--environment ${{ inputs.environment }}"
+          fi
+
+          if [[ "${{ inputs.target-machine }}" == "evm" ]] && [[ "${{ inputs.toolchain }}" == "ir-llvm" ]]; then
+            MODE="Y+M^B3"
           fi
 
           ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${ENVIRONMENT} \
