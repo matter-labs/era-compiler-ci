@@ -181,7 +181,7 @@ jobs:
               MODE="^"
             fi
           fi
-          if [[ "${{ inputs.target-machine }}" == "evm" ]] && [[ -n "${{ inputs.environment }}" ]]; then
+          if [[ -n "${{ inputs.environment }}" ]]; then
             ENVIRONMENT="--environment ${{ inputs.environment }}"
           fi
 
