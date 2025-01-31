@@ -18,11 +18,6 @@ on:
         description: 'Github Actions cache key for CCache.'
         required: false
         default: ''
-      ccache-key-type:
-        type: string
-        required: false
-        default: 'dynamic'
-        description: 'Type of ccache key: `static` - rotate each month, or `dynamic` - rotate with each update of `LLVM.lock`.'
       compiler-tester-repo:
         type: string
         required: false
@@ -44,6 +39,9 @@ jobs:
       options: -m 110g
     env:
       RESULTS_DIR: results
+      LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp
+      LNT_TEST_SUITE: zksync
+
     steps:
 
       - name: Checkout LNT
@@ -89,22 +87,22 @@ jobs:
       - name: Build LLVM
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
+          build-type: Release
           clone-llvm: ${{ steps.define-branches.outputs.llvm-branch == '' && 'true' || 'false' }}
-          enable-assertions: true
-          ccache-key-type: ${{ inputs.ccache-key-type }}
+          enable-assertions: false
           ccache-key: ${{ inputs.ccache-key }}
 
       - name: Build compiler-tester
-        run: cargo build --verbose --release --bin 'compiler-tester'
+        run: cargo build --release --bin 'compiler-tester'
 
       - name: Build compilers
         env:
           CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
         run: |
-          cargo build --verbose --release \
+          cargo build --release \
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-solidity-*/*/Cargo.toml \
             --target-dir './target-zksolc/'
-          cargo build --verbose --release \
+          cargo build --release \
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
             --target-dir './target-zkvyper/'
 
@@ -128,8 +126,8 @@ jobs:
               # Run benchmarks
               ./target/release/compiler-tester \
                 --zksolc ./target-zksolc/release/zksolc \
+                --zkvyper ./target-zkvyper/release/zkvyper \
                 --target eravm \
-                --path 'solidity' \
                 --mode "${MODE}" \
                 --toolchain "${TOOLCHAIN}" \
                 --benchmark "${RESULTS_DIR}" \
@@ -153,8 +151,8 @@ jobs:
                 # Run benchmarks
                 ./target/release/compiler-tester \
                   --zksolc ./target-zksolc/release/zksolc \
+                  --zkvyper ./target-zkvyper/release/zkvyper \
                   --target evm \
-                  --path 'solidity' \
                   --mode "${MODE}" \
                   --toolchain "${TOOLCHAIN}" \
                   --environment "${ENV}" \
@@ -170,7 +168,7 @@ jobs:
         shell: bash -ex {0}
         run: |
           for JSON in $(ls ${RESULTS_DIR}/*.json); do
-            lnt submit --ignore-regressions \
-              http://llvm-lnt.infra.matterlabs.corp/db_default/v4/zksync/submitRun \
+            lnt submit --ignore-regressions --select-machine=update \
+              ${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/submitRun \
               "${JSON}"
           done
