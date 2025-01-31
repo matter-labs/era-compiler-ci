@@ -33,7 +33,7 @@ jobs:
 
   lnt-benchmarks:
     name: LNT benchmarks
-    runs-on: matterlabs-ci-runner-high-performance
+    runs-on: [ci-runner-compiler, Linux]
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
