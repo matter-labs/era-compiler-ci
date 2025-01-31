@@ -33,7 +33,7 @@ jobs:
 
   lnt-benchmarks:
     name: LNT benchmarks
-    runs-on: [ci-runner-compiler, Linux]
+    runs-on: matterlabs-ci-runner-high-performance
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
@@ -113,11 +113,11 @@ jobs:
           ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
           LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
 
-          for MODE in Y+M3B3 Y+MzB3 E+M3B3 E+MzB3; do
+          for MODE in Y+M3B3 Y+MzB3 'E+M3B3 0.8' 'E+MzB3 0.8'; do
             for TOOLCHAIN in ir-llvm; do
               # Create a context file
               echo "{
-                \"machine\": \"llvm_eravm_${TOOLCHAIN}_${MODE}\",
+                \"machine\": \"llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
                 \"target\": \"eravm\",
                 \"toolchain\": \"${TOOLCHAIN}\",
                 \"zksolc_version\": \"${ZKSOLC_VERSION}\",
@@ -163,6 +163,12 @@ jobs:
             done
           done
           find "${RESULTS_DIR}" -name '*.json'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 'results'
+          path: 'results/*.json'
 
       - name: Submit LNT results
         shell: bash -ex {0}
