@@ -113,7 +113,9 @@ jobs:
           ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
           LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
 
-          for MODE in Y+M3B3 Y+MzB3 'E+M3B3 0.8' 'E+MzB3 0.8'; do
+          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
+
+          for MODE in "${MODES[@]}"; do
             for TOOLCHAIN in ir-llvm; do
               # Create a context file
               echo "{
@@ -136,8 +138,13 @@ jobs:
             done
           done
 
-          for MODE in Y+M3B3 Y+MzB3; do
-            for TOOLCHAIN in solc ir-llvm; do
+          for TOOLCHAIN in solc ir-llvm; do
+            if [[ "$TOOLCHAIN" == "solc" ]]; then
+              MODES=("Y+")
+            else
+              MODES=("Y+M3B3" "Y+MzB3")
+            fi
+            for MODE in "${MODES[@]}"; do
               for ENV in REVM EVMInterpreter; do
                 # Create a context file
                 echo "{
