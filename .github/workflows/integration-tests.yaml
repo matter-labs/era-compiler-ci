@@ -64,7 +64,7 @@ on:
       platforms-matrix:
         type: string
         required: false
-        default: '{ "include": [ {"name":"Linux-AMD64","runner":"[ci-runner-compiler, Linux]","image":"ghcr.io/matter-labs/zksync-llvm-runner:latest"} ] }'
+        default: '{ "include": [ {"name":"Linux-AMD64","runner":"matterlabs-ci-runner-high-performance","image":"ghcr.io/matter-labs/zksync-llvm-runner:latest"} ] }'
         description: 'Platforms matrix for the job.'
 
 jobs:
