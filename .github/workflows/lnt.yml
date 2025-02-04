@@ -28,6 +28,11 @@ on:
         required: false
         default: 'matter-labs/era-compiler-llvm'
         description: 'Compiler LLVM repository to use. Required for forks testing.'
+      use-dev-machine:
+        type: boolean
+        required: true
+        default: false
+        description: 'Use dev machine for PRs results.'
 
 jobs:
 
@@ -39,8 +44,9 @@ jobs:
       options: -m 110g
     env:
       RESULTS_DIR: results
-      LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp
+      LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp/db_default/v4
       LNT_TEST_SUITE: zksync
+      CONFIG_FILE: lntadmin.yaml
 
     steps:
 
@@ -113,13 +119,16 @@ jobs:
           ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
           LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
 
-          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
+          if [[ "${{ inputs.use-dev-machine }}" == "true" ]]; then
+            DEV_MACHINE_PREFIX="DEV__"
+          fi
 
+          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
           for MODE in "${MODES[@]}"; do
             for TOOLCHAIN in ir-llvm; do
               # Create a context file
               echo "{
-                \"machine\": \"llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
+                \"machine\": \"${DEV_MACHINE_PREFIX}llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
                 \"target\": \"eravm\",
                 \"toolchain\": \"${TOOLCHAIN}\",
                 \"zksolc_version\": \"${ZKSOLC_VERSION}\",
@@ -148,7 +157,7 @@ jobs:
               for ENV in REVM EVMInterpreter; do
                 # Create a context file
                 echo "{
-                  \"machine\": \"llvm_evm_${TOOLCHAIN}_${MODE}_${ENV}\",
+                  \"machine\": \"${DEV_MACHINE_PREFIX}llvm_evm_${TOOLCHAIN}_${MODE}_${ENV}\",
                   \"target\": \"evm\",
                   \"environment\": \"${ENV}\",
                   \"toolchain\": \"${TOOLCHAIN}\",
@@ -182,6 +191,39 @@ jobs:
         run: |
           for JSON in $(ls ${RESULTS_DIR}/*.json); do
             lnt submit --ignore-regressions --select-machine=update \
-              ${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/submitRun \
-              "${JSON}"
+              ${LNT_SERVER_URL}/${LNT_TEST_SUITE}/submitRun \
+              "${JSON}" >> lnt_results.txt 2>&1 || true
           done
+
+      - name: Prepare LNT admin
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        shell: bash -ex {0}
+        run: |
+          lnt admin create-config
+          sed -i 's|lnt_url: "http://localhost:8000"|lnt_url: "${LNT_URL}"|' "${CONFIG_FILE}"
+          sed -i 's|testsuite: nts|testsuite: zksync|' "${CONFIG_FILE}"
+          sed -i 's|# auth_token: .*|auth_token: '"'"'${{ secrets.LNT_ADMIN_TOKEN }}'"'"'|' "${CONFIG_FILE}"
+
+      - name: Publish comparison links
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        shell: bash -ex {0}
+        run: |
+          run_orders=()
+          while read -r line; do
+            run_orders+=("$(echo "${line}" | awk -F'/' '{print $NF}')")
+          done < lnt_results.txt
+          echo "Extracted run orders: ${run_orders[@]}"
+          for RUN in "${run_orders[@]}"; do
+            lnt admin get-run "${RUN}"
+            RUN_MACHINE=$(jq -r '.machine.name' run_${RUN}.json)
+            MAIN_MACHINE="${RUN_MACHINE//DEV__/}"
+            LATEST_MAIN_RUN=$(lnt admin list-runs ${MAIN_MACHINE} | head -n 1 | cut -d ' ' -f2)
+            echo "${LNT_SERVER_URL}/${LNT_TEST_SUITE}/${RUN}?compare_to=${LATEST_MAIN_RUN}" >> comparison_links.txt
+          done
+          cat comparison_links.txt
+
+      - name: Posting LNT comparison
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: comparison_links.txt
