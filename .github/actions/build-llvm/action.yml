@@ -32,6 +32,10 @@ inputs:
     description: 'Enable Valgrind for LLVM regression tests.'
     required: false
     default: 'false'
+  valgrind-options:
+    description: 'Space-separated list of additional valgrind options for LLVM regression tests.'
+    required: false
+    default: ''
   enable-rtti:
     description: 'Enable RTTI for LLVM.'
     required: false
@@ -59,7 +63,7 @@ inputs:
   llvm-builder-version:
     description: 'Version of the LLVM builder to use.'
     required: false
-    default: '1.0.35'
+    default: '1.0.36'
   ccache-key:
     description: 'Github Actions cache key for CCache.'
     required: false
@@ -163,10 +167,15 @@ runs:
         [ "${{ inputs.enable-rtti }}" = "true" ] && ENABLE_RTTI="--enable-rtti"
         [ "${{ inputs.extra-args }}" != "" ] && EXTRA_ARGS="--extra-args ${{ inputs.extra-args }}"
         [ "${{ inputs.sanitizer }}" != "" ] && SANITIZER="--sanitizer ${{ inputs.sanitizer }}"
-        [ "${{ inputs.enable-valgrind }}" = "true" ] && ENABLE_VALGRIND="--enable-valgrind"
+        if [ "${{ inputs.enable-valgrind }}" = "true" ]; then
+          ENABLE_VALGRIND="--enable-valgrind"
+          if [ "${{ inputs.valgrind-options }}" != "" ]; then
+            VALGRIND_OPTIONS=$(printf -- "--valgrind-options=%s " ${{ inputs.valgrind-options }})
+          fi
+        fi
         if [[ -n "${{ inputs.default-target-triple }}" && "${{ inputs.default-target-triple }}" != "default" ]]; then
           DEFAULT_TARGET="--default-target ${{ inputs.default-target-triple }}"
         fi
 
         zksync-llvm build --target-env ${{ inputs.target-env }} ${DEFAULT_TARGET} --build-type ${{ inputs.build-type }} \
-          --use-ccache ${{ inputs.builder-extra-args }} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
+          --ccache-variant=ccache ${{ inputs.builder-extra-args }} ${ENABLE_TESTS} ${ENABLE_VALGRIND} ${VALGRIND_OPTIONS} ${ENABLE_ASSERTIONS} ${ENABLE_COVERAGE} ${LLVM_PROJECTS} ${ENABLE_RTTI} ${SANITIZER} ${EXTRA_ARGS}
