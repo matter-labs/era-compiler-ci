@@ -44,7 +44,7 @@ jobs:
       options: -m 110g
     env:
       RESULTS_DIR: results
-      LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp/db_default/v4
+      LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp
       LNT_TEST_SUITE: zksync
       CONFIG_FILE: lntadmin.yaml
 
@@ -191,7 +191,7 @@ jobs:
         run: |
           for JSON in $(ls ${RESULTS_DIR}/*.json); do
             lnt submit --ignore-regressions --select-machine=update \
-              ${LNT_SERVER_URL}/${LNT_TEST_SUITE}/submitRun \
+              ${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/submitRun \
               "${JSON}" >> lnt_results.txt 2>&1 || true
           done
 
@@ -200,7 +200,7 @@ jobs:
         shell: bash -ex {0}
         run: |
           lnt admin create-config
-          sed -i 's|lnt_url: "http://localhost:8000"|lnt_url: "${LNT_URL}"|' "${CONFIG_FILE}"
+          sed -i "s|lnt_url: \"http://localhost:8000\"|lnt_url: \"${LNT_SERVER_URL}\"|" "${CONFIG_FILE}"
           sed -i 's|testsuite: nts|testsuite: zksync|' "${CONFIG_FILE}"
           sed -i 's|# auth_token: .*|auth_token: '"'"'${{ secrets.LNT_ADMIN_TOKEN }}'"'"'|' "${CONFIG_FILE}"
 
@@ -213,12 +213,13 @@ jobs:
             run_orders+=("$(echo "${line}" | awk -F'/' '{print $NF}')")
           done < lnt_results.txt
           echo "Extracted run orders: ${run_orders[@]}"
+          echo "Comparison links:" > comparison_links.txt
           for RUN in "${run_orders[@]}"; do
             lnt admin get-run "${RUN}"
             RUN_MACHINE=$(jq -r '.machine.name' run_${RUN}.json)
             MAIN_MACHINE="${RUN_MACHINE//DEV__/}"
             LATEST_MAIN_RUN=$(lnt admin list-runs ${MAIN_MACHINE} | head -n 1 | cut -d ' ' -f2)
-            echo "${LNT_SERVER_URL}/${LNT_TEST_SUITE}/${RUN}?compare_to=${LATEST_MAIN_RUN}" >> comparison_links.txt
+            echo "* [${MAIN_MACHINE}](${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/${RUN}?compare_to=${LATEST_MAIN_RUN})" >> comparison_links.txt
           done
           cat comparison_links.txt
 
@@ -227,3 +228,4 @@ jobs:
         uses: mshick/add-pr-comment@v2
         with:
           message-path: comparison_links.txt
+          message-id: comparison_links
