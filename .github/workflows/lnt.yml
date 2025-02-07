@@ -153,7 +153,7 @@ jobs:
 
           for TOOLCHAIN in solc ir-llvm; do
             if [[ "$TOOLCHAIN" == "solc" ]]; then
-              MODES=("Y+")
+              MODES=("Y+" "E+ 0.8")
             else
               MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
             fi
