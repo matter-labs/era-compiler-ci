@@ -155,13 +155,13 @@ jobs:
             if [[ "$TOOLCHAIN" == "solc" ]]; then
               MODES=("Y+")
             else
-              MODES=("Y+M3B3" "Y+MzB3")
+              MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
             fi
             for MODE in "${MODES[@]}"; do
               for ENV in REVM EVMInterpreter; do
                 # Create a context file
                 echo "{
-                  \"machine\": \"${DEV_MACHINE_PREFIX}llvm_evm_${TOOLCHAIN}_${MODE}_${ENV}\",
+                  \"machine\": \"${DEV_MACHINE_PREFIX}llvm_evm_${TOOLCHAIN}_${MODE// /_}_${ENV}\",
                   \"target\": \"evm\",
                   \"environment\": \"${ENV}\",
                   \"toolchain\": \"${TOOLCHAIN}\",
@@ -196,10 +196,11 @@ jobs:
           for JSON in $(ls ${RESULTS_DIR}/*.json); do
             lnt submit --ignore-regressions --select-machine=update \
               ${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/submitRun \
-              "${JSON}" >> "${LNT_RESULTS_FILE}" 2>&1 || true
+              "${JSON}" >> "${LNT_RESULTS_FILE}" 2>&1
           done
 
       - name: Prepare LNT admin
+        if: ${{ github.event_name == 'pull_request' }}
         shell: bash -ex {0}
         run: |
           lnt admin create-config
@@ -208,6 +209,7 @@ jobs:
           sed -i 's|# auth_token: .*|auth_token: '"'"'${{ secrets.LNT_ADMIN_TOKEN }}'"'"'|' "${CONFIG_FILE}"
 
       - name: Publish comparison links
+        if: ${{ github.event_name == 'pull_request' }}
         shell: bash -ex {0}
         run: |
           run_orders=()
@@ -223,6 +225,10 @@ jobs:
             RUN_MACHINE=$(jq -r '.machine.name' run_${RUN}.json)
             MAIN_MACHINE="${RUN_MACHINE//DEV__/}"
             LATEST_MAIN_RUN=$(lnt admin list-runs ${MAIN_MACHINE} | head -n 1 | cut -d ' ' -f2)
+            if [[ -z "${LATEST_MAIN_RUN}" ]]; then
+              echo "No main run found for ${MAIN_MACHINE}"
+              continue
+            fi
             # Extract metadata
             TARGET=$(echo "$MAIN_MACHINE" | grep -o 'eravm\|evm' || echo "")
             MODE=$(echo "$MAIN_MACHINE" | grep -o 'Y+M3B3\|Y+MzB3\|E+M3B3_0.8\|E+MzB3_0.8\|Y+' || echo "")
@@ -237,6 +243,7 @@ jobs:
           cat "${COMPARISON_FILE}"
 
       - name: Posting LNT comparison
+        if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
           message-path: ${{ env.COMPARISON_FILE }}
