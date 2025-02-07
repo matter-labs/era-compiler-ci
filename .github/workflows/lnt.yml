@@ -28,6 +28,11 @@ on:
         required: false
         default: 'matter-labs/era-compiler-llvm'
         description: 'Compiler LLVM repository to use. Required for forks testing.'
+      use-dev-machine:
+        type: boolean
+        required: true
+        default: false
+        description: 'Use dev machine for PRs results.'
 
 jobs:
 
@@ -41,6 +46,11 @@ jobs:
       RESULTS_DIR: results
       LNT_SERVER_URL: http://llvm-lnt.infra.matterlabs.corp
       LNT_TEST_SUITE: zksync
+      CONFIG_FILE: lntadmin.yaml
+      DEV_PREFIX: DEV__
+      LNT_RESULTS_FILE: lnt_results.txt
+      CONTEXT_FILE: context.json
+      COMPARISON_FILE: comparison_links.txt
 
     steps:
 
@@ -113,18 +123,21 @@ jobs:
           ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
           LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
 
-          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
+          if [[ "${{ inputs.use-dev-machine }}" == "true" ]]; then
+            DEV_MACHINE_PREFIX="${DEV_PREFIX}"
+          fi
 
+          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
           for MODE in "${MODES[@]}"; do
             for TOOLCHAIN in ir-llvm; do
               # Create a context file
               echo "{
-                \"machine\": \"llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
+                \"machine\": \"${DEV_MACHINE_PREFIX}llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
                 \"target\": \"eravm\",
                 \"toolchain\": \"${TOOLCHAIN}\",
                 \"zksolc_version\": \"${ZKSOLC_VERSION}\",
                 \"llvm_version\": \"${LLVM_VERSION}\"
-              }" > context.json
+              }" > "${CONTEXT_FILE}"
               # Run benchmarks
               ./target/release/compiler-tester \
                 --zksolc ./target-zksolc/release/zksolc \
@@ -134,27 +147,27 @@ jobs:
                 --toolchain "${TOOLCHAIN}" \
                 --benchmark "${RESULTS_DIR}" \
                 --benchmark-format json-lnt \
-                --benchmark-context context.json || true
+                --benchmark-context "${CONTEXT_FILE}" || true
             done
           done
 
           for TOOLCHAIN in solc ir-llvm; do
             if [[ "$TOOLCHAIN" == "solc" ]]; then
-              MODES=("Y+")
+              MODES=("Y+" "E+ 0.8")
             else
-              MODES=("Y+M3B3" "Y+MzB3")
+              MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
             fi
             for MODE in "${MODES[@]}"; do
               for ENV in REVM EVMInterpreter; do
                 # Create a context file
                 echo "{
-                  \"machine\": \"llvm_evm_${TOOLCHAIN}_${MODE}_${ENV}\",
+                  \"machine\": \"${DEV_MACHINE_PREFIX}llvm_evm_${TOOLCHAIN}_${MODE// /_}_${ENV}\",
                   \"target\": \"evm\",
                   \"environment\": \"${ENV}\",
                   \"toolchain\": \"${TOOLCHAIN}\",
                   \"zksolc_version\": \"${ZKSOLC_VERSION}\",
                   \"llvm_version\": \"${LLVM_VERSION}\"
-                }" > context.json
+                }" > "${CONTEXT_FILE}"
                 # Run benchmarks
                 ./target/release/compiler-tester \
                   --zksolc ./target-zksolc/release/zksolc \
@@ -165,7 +178,7 @@ jobs:
                   --environment "${ENV}" \
                   --benchmark "${RESULTS_DIR}" \
                   --benchmark-format json-lnt \
-                  --benchmark-context context.json || true
+                  --benchmark-context "${CONTEXT_FILE}" || true
               done
             done
           done
@@ -183,5 +196,55 @@ jobs:
           for JSON in $(ls ${RESULTS_DIR}/*.json); do
             lnt submit --ignore-regressions --select-machine=update \
               ${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/submitRun \
-              "${JSON}"
+              "${JSON}" >> "${LNT_RESULTS_FILE}" 2>&1
           done
+
+      - name: Prepare LNT admin
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash -ex {0}
+        run: |
+          lnt admin create-config
+          sed -i "s|lnt_url: \"http://localhost:8000\"|lnt_url: \"${LNT_SERVER_URL}\"|" "${CONFIG_FILE}"
+          sed -i 's|testsuite: nts|testsuite: zksync|' "${CONFIG_FILE}"
+          sed -i 's|# auth_token: .*|auth_token: '"'"'${{ secrets.LNT_ADMIN_TOKEN }}'"'"'|' "${CONFIG_FILE}"
+
+      - name: Publish comparison links
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash -ex {0}
+        run: |
+          run_orders=()
+          while read -r line; do
+            run_orders+=("$(echo "${line}" | awk -F'/' '{print $NF}')")
+          done < "${LNT_RESULTS_FILE}"
+          echo "Extracted run orders: ${run_orders[@]}"
+          # Initialize the Markdown table
+          echo '| Target | Mode    | Toolchain | Environment      | Link |' > "${COMPARISON_FILE}"
+          echo '|--------|---------|-----------|------------------|------|' >> "${COMPARISON_FILE}"
+          for RUN in "${run_orders[@]}"; do
+            lnt admin get-run "${RUN}"
+            RUN_MACHINE=$(jq -r '.machine.name' run_${RUN}.json)
+            MAIN_MACHINE="${RUN_MACHINE//DEV__/}"
+            LATEST_MAIN_RUN=$(lnt admin list-runs ${MAIN_MACHINE} | head -n 1 | cut -d ' ' -f2)
+            if [[ -z "${LATEST_MAIN_RUN}" ]]; then
+              echo "No main run found for ${MAIN_MACHINE}"
+              continue
+            fi
+            # Extract metadata
+            TARGET=$(echo "$MAIN_MACHINE" | grep -o 'eravm\|evm' || echo "")
+            MODE=$(echo "$MAIN_MACHINE" | grep -o 'Y+M3B3\|Y+MzB3\|E+M3B3_0.8\|E+MzB3_0.8\|Y+' || echo "")
+            TOOLCHAIN=$(echo "$MAIN_MACHINE" | grep -o 'solc\|ir-llvm' || echo "")
+            ENVIRONMENT=$(echo "$MAIN_MACHINE" | grep -o 'EVMInterpreter\|REVM' || echo "")
+            if [[ -z "$ENVIRONMENT" ]]; then
+              ENVIRONMENT="zk_evm"
+            fi
+            RESULT_LINK="[Results](${LNT_SERVER_URL}/db_default/v4/${LNT_TEST_SUITE}/${RUN}?compare_to=${LATEST_MAIN_RUN})"
+            echo "| ${TARGET} | ${MODE} | ${TOOLCHAIN} | ${ENVIRONMENT} | ${RESULT_LINK} |" >> "${COMPARISON_FILE}"
+          done
+          cat "${COMPARISON_FILE}"
+
+      - name: Posting LNT comparison
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: ${{ env.COMPARISON_FILE }}
+          message-id: comparison_links
