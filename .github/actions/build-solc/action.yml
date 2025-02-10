@@ -7,10 +7,12 @@ inputs:
     default: ''
   zksync-version:
     description: 'Release version.'
-    required: true
+    required: false
+    default: '1.0.1'
   solc-version:
     description: 'Solidity version.'
-    required: true
+    required: false
+    default: ''
   build-type:
     description: 'Build type: candidate or reference'
     required: false
@@ -26,7 +28,7 @@ inputs:
   boost-version:
     description: 'Boost version.'
     required: false
-    default: '1.74.0'
+    default: '1.83.0'
   working-dir:
     description: 'Working directory.'
     required: false
@@ -63,9 +65,31 @@ runs:
         fi
         ./b2 -d0 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
 
+    - name: Update Windows boost
+      if: runner.os == 'Windows'
+      shell: 'msys2 {0}'
+      working-directory: ${{ inputs.working-dir }}
+      run: |
+        for LIB in libboost_system libboost_program_options libboost_filesystem; do
+          cp ./boost/lib/${LIB}-*.a ./boost/lib/${LIB}.a
+        done
+
+    - name: Extract solc version
+      id: solc-version
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
+      working-directory: ${{ inputs.working-dir }}
+      run: |
+        if [[ "${{ inputs.solc-version }}" == "" ]]; then
+          # Universal awk solution for all platforms
+          SOLC_VERSION=$(awk -F'"' '/set\(PROJECT_VERSION/ {print $2}' CMakeLists.txt)
+        else
+          SOLC_VERSION="${{ inputs.solc-version }}"
+        fi
+        echo "version=${SOLC_VERSION}" | tee -a "${GITHUB_OUTPUT}"
+
     - name: Build solc
       working-directory: ${{ inputs.working-dir }}
-      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash -ex {0}' }}
       env:
         CXXFLAGS: "-Wno-narrowing"
         BOOST_VERSION: ${{ inputs.boost-version }}
@@ -92,29 +116,29 @@ runs:
         cd ./build
         cmake .. \
           -DCMAKE_BUILD_TYPE="${{ inputs.cmake-build-type }}" ${COMPILER_FLAGS} ${BOOST_CMAKE_FLAGS} \
-          -DSOL_VERSION_ZKSYNC="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
-          -DSOLC_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
-          -DSOL_VERSION_ZKEVM="${{ inputs.solc-version }}-${{ inputs.zksync-version }}" \
+          -DSOL_VERSION_ZKSYNC="${{ steps.solc-version.outputs.version }}-${{ inputs.zksync-version }}" \
+          -DSOLC_VERSION_ZKEVM="${{ steps.solc-version.outputs.version }}-${{ inputs.zksync-version }}" \
+          -DSOL_VERSION_ZKEVM="${{ steps.solc-version.outputs.version }}-${{ inputs.zksync-version }}" \
           -DUSE_Z3=OFF \
           -DUSE_CVC4=OFF \
           -DTESTS=0 \
           -DSOLC_LINK_STATIC=1 \
           -DSTATIC_LINKING=1 \
-          -DPEDANTIC=OFF ${{ inputs.extra-args}}
-        if [[ ${{ inputs.solc-version}} == "0.4"* ]]; then
+          -DPEDANTIC=OFF ${{ inputs.extra-args }}
+        if [[ ${{ steps.solc-version.outputs.version }} == "0.4"* ]]; then
           cmake --build . --config ${{ inputs.cmake-build-type }} --parallel ${PARALLEL} --target jsoncpp-project
           cmake --build . --config ${{ inputs.cmake-build-type }} --parallel ${PARALLEL} --target range-v3-project
         fi
         cmake --build . --config ${{ inputs.cmake-build-type }} --parallel ${PARALLEL}
         [ "$RUNNER_OS" = "Windows" ] && WIN_SUFFIX=".exe"
-        cp ./solc/solc${WIN_SUFFIX} ./solc/solc-${{ inputs.solc-version }}-${{ inputs.build-type }}${WIN_SUFFIX}
+        cp ./solc/solc${WIN_SUFFIX} ./solc/solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}${WIN_SUFFIX}
 
     - name: Upload binary for testing
       if: ${{ inputs.upload-testing-binary == 'true' }}
       uses: actions/upload-artifact@v4
       with:
-        name: solc-${{ inputs.solc-version }}-${{ inputs.build-type }}-${{ runner.os }}-${{ runner.arch }}
-        path: ${{ inputs.working-dir }}/build/solc/solc-${{ inputs.solc-version }}-${{ inputs.build-type }}
+        name: solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ inputs.working-dir }}/build/solc/solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}
 
     - name: Prepare binary
       working-directory: ${{ inputs.working-dir }}
@@ -126,7 +150,7 @@ runs:
         mkdir -p ./releases/${{ inputs.release-suffix }}
         strip "${SOLC_BIN}"
         ${SOLC_BIN} --version
-        mv ${SOLC_BIN} ./releases/${{ inputs.release-suffix }}/solc-${{ inputs.release-suffix }}-${{ inputs.solc-version}}-${{ inputs.zksync-version }}${WIN_SUFFIX}
+        mv ${SOLC_BIN} ./releases/${{ inputs.release-suffix }}/solc-${{ inputs.release-suffix }}-${{ steps.solc-version.outputs.version }}-${{ inputs.zksync-version }}${WIN_SUFFIX}
 
     - name: Upload binary for release
       if: inputs.release-suffix != ''
