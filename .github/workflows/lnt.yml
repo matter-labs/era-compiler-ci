@@ -231,7 +231,7 @@ jobs:
             fi
             # Extract metadata
             TARGET=$(echo "$MAIN_MACHINE" | grep -o 'eravm\|evm' || echo "")
-            MODE=$(echo "$MAIN_MACHINE" | grep -o 'Y+M3B3\|Y+MzB3\|E+M3B3_0.8\|E+MzB3_0.8\|Y+' || echo "")
+            MODE=$(echo "$MAIN_MACHINE" | grep -o 'Y+M3B3\|Y+MzB3\|E+M3B3_0.8\|E+MzB3_0.8\|Y+\|E+_0.8' || echo "")
             TOOLCHAIN=$(echo "$MAIN_MACHINE" | grep -o 'solc\|ir-llvm' || echo "")
             ENVIRONMENT=$(echo "$MAIN_MACHINE" | grep -o 'EVMInterpreter\|REVM' || echo "")
             if [[ -z "$ENVIRONMENT" ]]; then
