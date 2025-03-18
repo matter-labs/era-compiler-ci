@@ -185,11 +185,6 @@ jobs:
             ENVIRONMENT="--environment ${{ inputs.environment }}"
           fi
 
-          # Set mode to Y+ for evm ir-llvm due to hanging issues
-          if [[ "${{ inputs.target-machine }}" == "evm" ]] && [[ "${{ inputs.toolchain }}" == "ir-llvm" ]]; then
-            MODE="Y+M^B3"
-          fi
-
           ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${ENVIRONMENT} \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
