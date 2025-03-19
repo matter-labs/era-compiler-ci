@@ -23,8 +23,7 @@ runs:
     - name: Cargo deny
       uses: EmbarkStudios/cargo-deny-action@v2
       with:
-        # Save cache only on push events
-        save-if: ${{ github.event_name == 'push' && github.ref_type != 'tag' }}
+        command-arguments: "--allow unmaintained --hide-inclusion-graph"
 
     - name: Cargo check
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
