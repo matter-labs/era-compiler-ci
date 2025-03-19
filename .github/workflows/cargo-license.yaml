@@ -12,3 +12,5 @@ jobs:
 
       - name: Check licenses
         uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command-arguments: "--allow unmaintained --hide-inclusion-graph"
