@@ -66,6 +66,11 @@ on:
         required: false
         default: '{ "include": [ {"name":"Linux-AMD64","runner":"matterlabs-ci-runner-high-performance","image":"ghcr.io/matter-labs/zksync-llvm-runner:latest"} ] }'
         description: 'Platforms matrix for the job.'
+      toolchain:
+        type: string
+        required: false
+        default: 'ir-llvm'
+        description: 'Toolchain passed via `--toolchain` for era-compiler-tester. Available arguments: `ir-llvm`, `solc`.'
 
 jobs:
 
@@ -121,6 +126,7 @@ jobs:
           custom-solc-run-id: ${{ inputs.custom-solc-run-id }}
           custom-solc-version: ${{ inputs.custom-solc-version }}
           target-machine: ${{ inputs.target-machine }}
+          toolchain: ${{ inputs.toolchain }}
 
       - name: Send Slack notification
         uses: 8398a7/action-slack@v3

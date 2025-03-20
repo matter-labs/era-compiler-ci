@@ -22,6 +22,12 @@ inputs:
     required: false
     default: 'eravm'
     description: 'Target machine passed via `--target` for era-compiler-tester. Available arguments: `eravm`, `evm`.'
+  toolchain:
+    type: string
+    required: false
+    default: 'ir-llvm'
+    description: 'Toolchain passed via `--toolchain` for era-compiler-tester. Available arguments: `ir-llvm`, `solc`.'
+
 
 runs:
   using: "composite"
@@ -103,10 +109,10 @@ runs:
       run: |
         if [[ -n "${{ inputs.target-machine }}" && "${{ inputs.target-machine }}" != "default" ]]; then
           TARGET="--target ${{ inputs.target-machine }}"
-          # Always use upstream solc for EVM target for now
-          if [[ "${{ inputs.target-machine }}" == "evm" ]]; then
-            TOOLCHAIN="--toolchain solc"
-          fi
+        fi
+
+        if [[ -n "${{ inputs.toolchain }}" && "${{ inputs.toolchain }}" != "default" ]]; then
+          TOOLCHAIN="--toolchain ${{ inputs.toolchain }}"
         fi
 
         # Define path filter
