@@ -8,7 +8,7 @@ inputs:
   zksync-version:
     description: 'Release version.'
     required: false
-    default: '1.0.1'
+    default: '1.0.2'
   solc-version:
     description: 'Solidity version.'
     required: false
@@ -21,10 +21,6 @@ inputs:
     description: 'CMake build type.'
     required: false
     default: 'Release'
-  extra-args:
-    description: 'Extra arguments for cmake.'
-    required: false
-    default: ''
   boost-version:
     description: 'Boost version.'
     required: false
@@ -37,6 +33,14 @@ inputs:
     description: 'Upload testing binary.'
     required: false
     default: 'true'
+  use-gcc:
+    description: 'Use GCC compiler instead of clang (required for old versions <=0.4.16).'
+    required: false
+    default: 'false'
+  use-windows-clang:
+    description: 'Use clang compiler instead of GCC on Windows.'
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -63,15 +67,18 @@ runs:
           # Only relative boost prefix is working on Windows MSYS2
           ./bootstrap.sh --prefix="../boost"
         fi
-        ./b2 -d0 link=static runtime-link=static variant=release threading=multi address-model=64 --with-filesystem --with-system --with-program_options --with-test -j${PARALLEL} install
+        ./b2 -d0 link=static runtime-link=static variant=release threading=multi \
+          address-model=64 --with-filesystem --with-system --with-program_options --with-test \
+          --with-thread --with-date_time --with-regex --with-chrono --with-random -j${PARALLEL} install
 
     - name: Update Windows boost
       if: runner.os == 'Windows'
       shell: 'msys2 {0}'
       working-directory: ${{ inputs.working-dir }}
       run: |
-        for LIB in libboost_system libboost_program_options libboost_filesystem; do
-          cp ./boost/lib/${LIB}-*.a ./boost/lib/${LIB}.a
+        for LIB in libboost_system libboost_program_options libboost_filesystem libboost_thread \
+          libboost_date_time libboost_regex libboost_chrono libboost_random libboost_unit_test_framework; do
+            cp ./boost/lib/${LIB}-*.a ./boost/lib/${LIB}.a
         done
 
     - name: Extract solc version
@@ -102,12 +109,27 @@ runs:
         BOOST_CMAKE_FLAGS="-DBoost_NO_BOOST_CMAKE=1 -DBoost_NO_SYSTEM_PATHS=1 -DBOOST_ROOT=${BOOST_ROOT} -DBOOST_LIBRARYDIR="${BOOST_LIBDIR}" -DBoost_USE_STATIC_RUNTIME=1 -DBOOST_USE_STATIC_LIBS=1 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}" -DBoost_DEBUG=1"
         if [ ${RUNNER_OS} = macOS ]; then
           PARALLEL=$(sysctl -n hw.ncpu)
+          if [ ${RUNNER_ARCH} = X64 ]; then
+            COMPILER_CXX_FLAGS="-DBOOST_NO_CXX98_FUNCTION_BASE -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
+          fi
+        elif [ ${RUNNER_OS} = Linux ]; then
+          PARALLEL=$(nproc)
+          if [ ${{ inputs.use-gcc }} = 'false' ]; then
+            COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
+          else
+            COMPILER_FLAGS="-DUSE_LD_GOLD=OFF"
+          fi
         else
           PARALLEL=$(nproc)
-          COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
+          COMPILER_FLAGS="-DUSE_LD_GOLD=OFF"
+          # If it would be required to build Windows using clang, then uncomment
+          if [ ${{ inputs.use-gcc }} = 'false' ]; then
+            COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
+          fi
         fi
         if [ ${RUNNER_OS} = Windows ]; then
-          export LDFLAGS='-lbcrypt -lwsock32 -static'
+          # Set 64MB stack size for Windows
+          export LDFLAGS='-lbcrypt -lwsock32 -static -Wl,--stack,67108864'
           BOOST_SHORT_VERSION=${BOOST_VERSION%??}
           BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
           BOOST_CMAKE_FLAGS="${BOOST_CMAKE_FLAGS} -DBoost_COMPILER=-mgw14 -DBoost_ARCHITECTURE=-x64 -DBOOST_INCLUDEDIR="${BOOST_INCLUDEDIR}""
@@ -122,9 +144,10 @@ runs:
           -DUSE_Z3=OFF \
           -DUSE_CVC4=OFF \
           -DTESTS=0 \
+          -DCMAKE_CXX_FLAGS="${COMPILER_CXX_FLAGS} -DJSON_USE_INT64_DOUBLE_CONVERSION" \
           -DSOLC_LINK_STATIC=1 \
           -DSTATIC_LINKING=1 \
-          -DPEDANTIC=OFF ${{ inputs.extra-args }}
+          -DPEDANTIC=OFF
         if [[ ${{ steps.solc-version.outputs.version }} == "0.4"* ]]; then
           cmake --build . --config ${{ inputs.cmake-build-type }} --parallel ${PARALLEL} --target jsoncpp-project
           cmake --build . --config ${{ inputs.cmake-build-type }} --parallel ${PARALLEL} --target range-v3-project
@@ -138,7 +161,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}-${{ runner.os }}-${{ runner.arch }}
-        path: ${{ inputs.working-dir }}/build/solc/solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}
+        path: ${{ inputs.working-dir }}/build/solc/solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}${{ runner.os == 'Windows' && '.exe' || '' }}
 
     - name: Prepare binary
       working-directory: ${{ inputs.working-dir }}
