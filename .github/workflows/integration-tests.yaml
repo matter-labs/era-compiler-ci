@@ -119,7 +119,7 @@ jobs:
           ccache-key-type: ${{ inputs.ccache-key-type }}
 
       - name: Integration tests
-        uses: matter-labs/era-compiler-ci/.github/actions/integration-tests@main
+        uses: matter-labs/era-compiler-ci/.github/actions/integration-tests@aba-unified-solc
         with:
           path: ${{ inputs.path }}
           extra-args: ${{ inputs.extra-args }}

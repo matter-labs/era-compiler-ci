@@ -123,7 +123,7 @@ runs:
             PATH_FILTER="--path tests/solidity"
           fi
         else
-          PATH_FILTER="--path '${{ inputs.path }}'"
+          PATH_FILTER="--path ${{ inputs.path }}"
         fi
 
         ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${PATH_FILTER} \
