@@ -91,20 +91,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "MacOS x86"
-            runner: macos-latest-large
-            release-suffix: macosx-amd64
-          - name: "MacOS arm64"
-            runner: [self-hosted, macOS, ARM64]
-            release-suffix: macosx-arm64
-          - name: "Linux x86"
-            runner: matterlabs-ci-runner-high-performance
-            image: ${{ needs.setup.outputs.use-new-tools == 'true' && 'ghcr.io/matter-labs/zksync-llvm-runner:latest' || 'matterlabs/llvm_runner:ubuntu20-llvm17-latest' }}
-            release-suffix: linux-amd64
-          - name: "Linux ARM64"
-            runner: matterlabs-ci-runner-arm
-            image: ${{ needs.setup.outputs.use-new-tools == 'true' && 'ghcr.io/matter-labs/zksync-llvm-runner:latest' || 'matterlabs/llvm_runner:ubuntu20-llvm17-latest' }}
-            release-suffix: linux-arm64
+          # - name: "MacOS x86"
+          #   runner: macos-latest-large
+          #   release-suffix: macosx-amd64
+          # - name: "MacOS arm64"
+          #   runner: [self-hosted, macOS, ARM64]
+          #   release-suffix: macosx-arm64
+          # - name: "Linux x86"
+          #   runner: matterlabs-ci-runner-high-performance
+          #   image: ${{ needs.setup.outputs.use-new-tools == 'true' && 'ghcr.io/matter-labs/zksync-llvm-runner:latest' || 'matterlabs/llvm_runner:ubuntu20-llvm17-latest' }}
+          #   release-suffix: linux-amd64
+          # - name: "Linux ARM64"
+          #   runner: matterlabs-ci-runner-arm
+          #   image: ${{ needs.setup.outputs.use-new-tools == 'true' && 'ghcr.io/matter-labs/zksync-llvm-runner:latest' || 'matterlabs/llvm_runner:ubuntu20-llvm17-latest' }}
+          #   release-suffix: linux-arm64
           - name: Windows
             runner: windows-2019-github-hosted-64core
             release-suffix: windows-amd64
