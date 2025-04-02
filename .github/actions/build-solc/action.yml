@@ -123,9 +123,9 @@ runs:
           PARALLEL=$(nproc)
           COMPILER_FLAGS="-DUSE_LD_GOLD=OFF"
           # If it would be required to build Windows using clang, then uncomment
-          if [ ${{ inputs.use-gcc }} = 'false' ]; then
-            COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
-          fi
+          # if [ ${{ inputs.use-windows-clang }} = 'true' ]; then
+          #   COMPILER_FLAGS="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LD_GOLD=OFF -DCMAKE_CXX_FLAGS=-fuse-ld=lld"
+          # fi
         fi
         if [ ${RUNNER_OS} = Windows ]; then
           # Set 64MB stack size for Windows
@@ -144,7 +144,7 @@ runs:
           -DUSE_Z3=OFF \
           -DUSE_CVC4=OFF \
           -DTESTS=0 \
-          -DCMAKE_CXX_FLAGS="${COMPILER_CXX_FLAGS} -DJSON_USE_INT64_DOUBLE_CONVERSION" \
+          -DCMAKE_CXX_FLAGS="${COMPILER_CXX_FLAGS} -DRANGES_WORKAROUND_CLANG_43400 -DJSON_USE_INT64_DOUBLE_CONVERSION" \
           -DSOLC_LINK_STATIC=1 \
           -DSTATIC_LINKING=1 \
           -DPEDANTIC=OFF
