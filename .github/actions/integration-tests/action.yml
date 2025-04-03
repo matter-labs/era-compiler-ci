@@ -66,6 +66,24 @@ runs:
           --manifest-path ${CARGO_HOME}/git/checkouts/era-compiler-solidity-*/${ZKSOLC_VERSION}/Cargo.toml \
           --target-dir './target-zksolc/'
 
+    - name: Build solx
+      shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      if: ${{ inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' }}
+      run: |
+        [ ${RUNNER_OS} == 'Windows' ] && export CARGO_HOME="/c/Users/runneradmin/.cargo"
+        [ -z ${CARGO_HOME} ] && CARGO_HOME=${HOME}/.cargo
+        # Get unique SHA of the era-compiler-solidity dependency from the Cargo.lock
+        # it is required to workaround the case when multiple zksolc versions are cloned
+        # e.g. on self-hosted runners
+        SOLX_VERSION=$(cargo tree --frozen --depth 1 --format {p} | grep -m 1 solx | sed -n 's/.*#\([0-9a-f]\{7\}\).*/\1/p')
+        # Use LLD on Windows to properly link with libstdc++.
+        if [ ${RUNNER_OS} = Windows ]; then
+          export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
+        fi
+        cargo build --release \
+          --manifest-path ${CARGO_HOME}/git/checkouts/solx-*/${SOLX_VERSION}/Cargo.toml \
+          --target-dir './target-solx/'
+
     - name: Build zkvyper
       if: ${{ ! (runner.os == 'Linux' && runner.arch == 'ARM64') }}
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
@@ -123,9 +141,10 @@ runs:
             PATH_FILTER="--path tests/solidity"
           fi
         else
-          PATH_FILTER="--path '${{ inputs.path }}'"
+          PATH_FILTER="--path ${{ inputs.path }}"
         fi
 
         ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${PATH_FILTER} \
+          --solx './target-solx/release/solx' \
           --zksolc './target-zksolc/release/zksolc' \
           --zkvyper './target-zkvyper/release/zkvyper' ${{ inputs.extra-args }}

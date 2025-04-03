@@ -92,6 +92,9 @@ jobs:
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
+    env:
+      BOOST_PREFIX: ${{ github.workspace }}/era-solidity/boost/lib
+      SOLC_PREFIX: ${{ github.workspace }}/era-solidity/build
     steps:
       - name: Define branches
         shell: bash -ex {0}
@@ -114,6 +117,14 @@ jobs:
           repository: ${{ steps.define-branches.outputs.compiler-tester-repo }}
           ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
           submodules: recursive
+
+      - name: Building solc
+        if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm'
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
+        with:
+          cmake-build-type: RelWithDebInfo
+          working-dir: 'era-solidity'
+          upload-testing-binary: false
 
       - name: Checkout LLVM
         if: steps.define-branches.outputs.llvm-branch != ''
@@ -138,7 +149,7 @@ jobs:
       - name: Build compiler-tester
         run: cargo build --verbose --release --bin 'compiler-tester'
 
-      - name: Build compilers
+      - name: Build zksolc and zkvyper
         env:
           CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
         run: |
@@ -148,6 +159,15 @@ jobs:
           cargo build --verbose --release \
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
             --target-dir './target-zkvyper/'
+
+      - name: Build solx
+        if: ${{ inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' }}
+        env:
+          CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
+        run: |
+          cargo build --release \
+            --manifest-path ${CARGO_CHECKOUT_DIR}/solx-*/*/Cargo.toml \
+            --target-dir './target-solx/'
 
       - name: Download custom solc
         if: inputs.custom-solc-run-id != '' && inputs.custom-solc-version != ''
@@ -186,6 +206,7 @@ jobs:
           fi
 
           ./target/release/compiler-tester ${TARGET} ${TOOLCHAIN} ${ENVIRONMENT} \
+            --solx './target-solx/release/solx' \
             --zksolc './target-zksolc/release/zksolc' \
             --zkvyper './target-zkvyper/release/zkvyper' \
             --mode="${MODE}" \
