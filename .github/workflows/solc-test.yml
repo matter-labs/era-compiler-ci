@@ -12,7 +12,7 @@ on:
         description: "compiler-tester branch to use as a benchmark candidate"
         type: string
         required: false
-        default: "main"
+        default: "era-solidity-test"
 
 concurrency:
   group: ${{ github.repository_id }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -116,7 +116,7 @@ jobs:
       reference-ref: ${{ steps.compiler_tester_ref.outputs.reference-ref }}
       candidate-ref: ${{ steps.compiler_tester_ref.outputs.candidate-ref }}
     env:
-      ERA_SOLIDITY_TEST_TAG: main
+      ERA_SOLIDITY_TEST_TAG: era-solidity-test
       ERA_SOLIDITY_REF_DEFAULT: main
     steps:
 
