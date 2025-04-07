@@ -205,7 +205,7 @@ jobs:
           echo "solc-version=${SOLC_VERSION}" | tee -a "${GITHUB_OUTPUT}"
 
       - name: Building the Solidity compiler
-        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@aba-unified-solc
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
         with:
           solc-version: ${{ steps.project_version.outputs.solc-version }}
           zksync-version: 1.0.${{ github.run_id }}
@@ -220,7 +220,7 @@ jobs:
   # If you would like to make a change to the integration tests workflow, please do it in the era-compiler-ci repository
   integration-tests:
     needs: [ compiler-tester-ref, build ]
-    uses: matter-labs/era-compiler-ci/.github/workflows/integration-tests.yaml@aba-unified-solc
+    uses: matter-labs/era-compiler-ci/.github/workflows/integration-tests.yaml@main
     secrets: inherit
     with:
       compiler-tester-ref: ${{ needs.compiler-tester-ref.outputs.candidate-ref }}
@@ -235,7 +235,7 @@ jobs:
   # If you would like to make a change to the benchmarks workflow, please do it in the era-compiler-ci repository
   benchmarks:
     needs: [ compiler-tester-ref, target-machine, build ]
-    uses: matter-labs/era-compiler-ci/.github/workflows/benchmarks.yml@aba-unified-solc
+    uses: matter-labs/era-compiler-ci/.github/workflows/benchmarks.yml@main
     secrets: inherit
     strategy:
       fail-fast: false
