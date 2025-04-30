@@ -63,7 +63,7 @@ inputs:
   llvm-builder-version:
     description: 'Version of the LLVM builder to use.'
     required: false
-    default: '1.0.36'
+    default: '1.0.37'
   ccache-key:
     description: 'Github Actions cache key for CCache.'
     required: false
