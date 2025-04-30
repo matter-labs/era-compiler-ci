@@ -91,6 +91,13 @@ jobs:
           ref: ${{ steps.define-branches.outputs.llvm-branch }}
           path: llvm
 
+      - name: Building solc
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
+        with:
+          cmake-build-type: RelWithDebInfo
+          working-dir: 'era-solidity'
+          upload-testing-binary: false
+
       # An issue prevents to correctly use the same version of composite actions from `workflow_call`
       # https://github.com/actions/toolkit/issues/1264
       # for now, it will always be taken from the latest main
@@ -108,6 +115,8 @@ jobs:
       - name: Build compilers
         env:
           CARGO_CHECKOUT_DIR: /usr/local/cargo/git/checkouts
+          BOOST_PREFIX: ${{ github.workspace }}/era-solidity/boost/lib
+          SOLC_PREFIX: ${{ github.workspace }}/era-solidity/build
         run: |
           cargo build --release \
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-solidity-*/*/Cargo.toml \
@@ -115,47 +124,59 @@ jobs:
           cargo build --release \
             --manifest-path ${CARGO_CHECKOUT_DIR}/era-compiler-vyper-*/*/Cargo.toml \
             --target-dir './target-zkvyper/'
+          cargo build --release \
+            --manifest-path ${CARGO_CHECKOUT_DIR}/solx-*/*/Cargo.toml \
+            --target-dir './target-solx/'
 
       - name: Run benchmarks LNT
         shell: bash -ex {0}
         run: |
-          ZKSOLC_OUTPUT=$(./target-zksolc/release/zksolc --version)
-          ZKSOLC_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "v\d+\.\d+\.\d+")
-          LLVM_VERSION=$(echo "${ZKSOLC_OUTPUT}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
-
           if [[ "${{ inputs.use-dev-machine }}" == "true" ]]; then
             DEV_MACHINE_PREFIX="${DEV_PREFIX}"
           fi
 
-          MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
-          for MODE in "${MODES[@]}"; do
-            for TOOLCHAIN in ir-llvm; do
-              # Create a context file
-              echo "{
-                \"machine\": \"${DEV_MACHINE_PREFIX}llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
-                \"target\": \"eravm\",
-                \"toolchain\": \"${TOOLCHAIN}\",
-                \"zksolc_version\": \"${ZKSOLC_VERSION}\",
-                \"llvm_version\": \"${LLVM_VERSION}\"
-              }" > "${CONTEXT_FILE}"
-              # Run benchmarks
-              ./target/release/compiler-tester \
-                --zksolc ./target-zksolc/release/zksolc \
-                --zkvyper ./target-zkvyper/release/zkvyper \
-                --target eravm \
-                --mode "${MODE}" \
-                --toolchain "${TOOLCHAIN}" \
-                --benchmark "${RESULTS_DIR}" \
-                --benchmark-format json-lnt \
-                --benchmark-context "${CONTEXT_FILE}" || true
+          ZKSOLC_VERSION=$(./target-zksolc/release/zksolc --version)
+          LLVM_VERSION=$(echo "${ZKSOLC_VERSION}" | grep -oP "(?<=LLVM build )[a-f0-9]{40}")
+          SOLC_VERSIONS=("0.4" "0.5" "0.6" "0.7" "0.8")
+          for SOLC in "${SOLC_VERSIONS[@]}"; do
+            MODES=("E+M3B3 ${SOLC}" "E+MzB3 ${SOLC}")
+            # if solc is 0.8, add E+M3B3 and E+MzB3
+            if [[ "${SOLC}" == "0.8" ]]; then
+              MODES+=("Y+M3B3 ${SOLC}" "Y+MzB3 ${SOLC}")
+            fi
+            for MODE in "${MODES[@]}"; do
+              for TOOLCHAIN in ir-llvm; do
+                # Create a context file
+                echo "{
+                  \"machine\": \"${DEV_MACHINE_PREFIX}llvm_eravm_${TOOLCHAIN}_${MODE// /_}\",
+                  \"target\": \"eravm\",
+                  \"toolchain\": \"${TOOLCHAIN}\",
+                  \"compiler_version\": \"${ZKSOLC_VERSION}\",
+                  \"llvm_version\": \"${LLVM_VERSION}\"
+                }" > "${CONTEXT_FILE}"
+                # Run benchmarks
+                ./target/release/compiler-tester \
+                  --zksolc ./target-zksolc/release/zksolc \
+                  --zkvyper ./target-zkvyper/release/zkvyper \
+                  --solx ./target-solx/release/solx \
+                  --target eravm \
+                  --mode "${MODE}" \
+                  --toolchain "${TOOLCHAIN}" \
+                  --benchmark "${RESULTS_DIR}" \
+                  --benchmark-format json-lnt \
+                  --benchmark-context "${CONTEXT_FILE}" || true
+              done
             done
           done
 
+          SOLX_VERSION=$(./target-solx/release/solx --version | head -n 1)
+          SOLX_SOLC_VERSION=$(./target-solx/release/solx --version | tail -n 1)
+          LLVM_VERSION=$(echo "${SOLX_VERSION}" | grep -oP "(?<=LLVM build: )[a-f0-9]{40}")
           for TOOLCHAIN in solc ir-llvm; do
             if [[ "$TOOLCHAIN" == "solc" ]]; then
               MODES=("Y+" "E+ 0.8")
             else
-              MODES=("Y+M3B3" "Y+MzB3" "E+M3B3 0.8" "E+MzB3 0.8")
+              MODES=("Y+M3B3" "Y+MzB3" "E+M3B3" "E+MzB3")
             fi
             for MODE in "${MODES[@]}"; do
               for ENV in REVM EVMInterpreter; do
@@ -165,13 +186,14 @@ jobs:
                   \"target\": \"evm\",
                   \"environment\": \"${ENV}\",
                   \"toolchain\": \"${TOOLCHAIN}\",
-                  \"zksolc_version\": \"${ZKSOLC_VERSION}\",
+                  \"compiler_version\": \"${SOLX_VERSION} ${SOLX_SOLC_VERSION}\",
                   \"llvm_version\": \"${LLVM_VERSION}\"
                 }" > "${CONTEXT_FILE}"
                 # Run benchmarks
                 ./target/release/compiler-tester \
                   --zksolc ./target-zksolc/release/zksolc \
                   --zkvyper ./target-zkvyper/release/zkvyper \
+                  --solx ./target-solx/release/solx \
                   --target evm \
                   --mode "${MODE}" \
                   --toolchain "${TOOLCHAIN}" \
