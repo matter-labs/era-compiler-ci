@@ -51,7 +51,7 @@ runs:
         if [ '${{ inputs.enable-coverage }}' = 'true' ]; then
           export RUSTFLAGS="${RUSTFLAGS} -C instrument-coverage"
         fi
-        if [[ "${RUNNER_OS}" == "Windows" ]] || [[ "${RUNNER_OS}" == "Linux" ]]; then
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
           export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
         fi
         cargo ${BUILD_STD_LIB} build ${RELEASE} ${{ steps.build-target.outputs.target }}
