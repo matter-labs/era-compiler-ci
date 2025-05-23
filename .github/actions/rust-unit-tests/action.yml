@@ -81,7 +81,7 @@ runs:
           export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
         fi
         # Use LLD on Windows to properly link with libstdc++.
-        if [ ${RUNNER_OS} = Windows ]; then
+        if [[ ${RUNNER_OS} = Windows ]] || [[ ${RUNNER_OS} = Linux ]]; then
           export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
         fi
         cargo test ${{ steps.build-target.outputs.target }} -- -Z unstable-options \
