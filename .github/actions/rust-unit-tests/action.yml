@@ -61,7 +61,7 @@ runs:
           TEST_COMMAND="llvm-cov --all-features --workspace --lcov --output-path lcov.info"
         fi
         # Use LLD on Windows to properly link with libstdc++.
-        if [ ${RUNNER_OS} = Windows ]; then
+        if [[ ${RUNNER_OS} = Windows ]] || [[ ${RUNNER_OS} = Linux ]]; then; then
           export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
         fi
         cargo ${TEST_COMMAND} --release ${{ steps.build-target.outputs.target }} -- -Z unstable-options \
