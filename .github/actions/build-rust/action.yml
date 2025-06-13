@@ -54,6 +54,8 @@ runs:
         if [[ "${RUNNER_OS}" == "Windows" ]] || [[ "${RUNNER_OS}" == "Linux" ]]; then
           export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-fuse-ld=lld"
         fi
+        cargo --version
+        rustc --version
         cargo ${BUILD_STD_LIB} build ${RELEASE} ${{ steps.build-target.outputs.target }}
         echo "${PWD}/target/${{ inputs.target }}/${{ inputs.build-type }}" >> "${GITHUB_PATH}"
 
