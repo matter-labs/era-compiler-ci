@@ -8,6 +8,7 @@ runs:
     id: msys2
     with:
       path-type: inherit # Important to correctly update PATH
+      update: true # Update msys2 packages
       install: >-
         base-devel
         git
