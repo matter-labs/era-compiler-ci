@@ -135,7 +135,7 @@ runs:
           export LDFLAGS='-fuse-ld=lld -lbcrypt -lwsock32 -static -Wl,--stack,67108864'
           BOOST_SHORT_VERSION=${BOOST_VERSION%??}
           BOOST_INCLUDEDIR="${PWD}/boost/include/boost-${BOOST_SHORT_VERSION}"
-          BOOST_CMAKE_FLAGS="${BOOST_CMAKE_FLAGS} -DBoost_COMPILER=-mgw14 -DBoost_ARCHITECTURE=-x64"
+          BOOST_CMAKE_FLAGS="${BOOST_CMAKE_FLAGS} -DBoost_COMPILER=-mgw15 -DBoost_ARCHITECTURE=-x64"
         fi
         mkdir -p ./build
         cd ./build
