@@ -106,12 +106,21 @@ jobs:
         uses: matter-labs/era-compiler-ci/.github/actions/prepare-msys@v1
 
       - name: Building solc
-        if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm'
+        if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id == ''
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
         with:
           cmake-build-type: RelWithDebInfo
           working-dir: 'era-solidity'
           upload-testing-binary: false
+
+      - name: Download prebuilt solc
+        if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-solc-*
+          path: ./era-solidity/build/
+          run-id: ${{ inputs.custom-solc-run-id }}
+          merge-multiple: true
 
       # An issue prevents to correctly use the same version of composite actions from `workflow_call`
       # https://github.com/actions/toolkit/issues/1264
