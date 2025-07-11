@@ -88,7 +88,7 @@ jobs:
       matrix:
         type: ["reference", "candidate"]
     name: ${{ inputs.target-machine}} ${{ matrix.type }} ${{ inputs.toolchain }}
-    runs-on: [ci-runner-compiler, Linux]
+    runs-on: matterlabs-ci-runner-high-performance
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
       options: -m 110g
@@ -122,9 +122,10 @@ jobs:
         if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id == ''
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
         with:
-          cmake-build-type: RelWithDebInfo
+          cmake-build-type: Release
           working-dir: 'era-solidity'
-          upload-testing-binary: false
+          upload-testing-binary: true
+          build-type: ${{ matrix.type }}
 
       - name: Download prebuilt solc
         if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id != ''
