@@ -46,6 +46,14 @@ runs:
   using: "composite"
   steps:
 
+    # TODO: delete this step
+    - name: Upload solc src for comparison
+      if: ${{ inputs.upload-testing-binary == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: src-solc-${{ steps.solc-version.outputs.version }}-${{ inputs.build-type }}-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ inputs.working-dir }}
+
     - name: Install Boost (MacOS and Linux)
       working-directory: ${{ inputs.working-dir }}
       shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
