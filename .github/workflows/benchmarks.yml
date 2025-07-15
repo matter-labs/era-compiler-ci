@@ -77,7 +77,12 @@ on:
         type: string
         required: false
         default: ''
-        description: 'Environment passed via `--environment` for era-compiler-tester. Available arguments: `EVMInterpreter`, `REVM`.'
+        description: 'Environment passed via `--environment` for era-compiler-tester. Available arguments: `EVMInterpreter`.'
+      clone-llvm:
+        type: string
+        required: false
+        default: 'true'
+        description: 'Whether to clone LLVM repository. If set to `false`, it will use the LLVM repository from the compiler-tester submodule.'
 
 
 jobs:
@@ -118,6 +123,11 @@ jobs:
           ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
           submodules: recursive
 
+      - name: Checkout submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --force --depth=1 --recursive --checkout
+
       - name: Building solc
         if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id == ''
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
@@ -146,7 +156,7 @@ jobs:
           merge-multiple: true
 
       - name: Checkout LLVM
-        if: steps.define-branches.outputs.llvm-branch != ''
+        if: ${{ inputs.clone-llvm == 'true' && steps.define-branches.outputs.llvm-branch != '' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.compiler-llvm-repo }}
@@ -159,7 +169,7 @@ jobs:
       - name: Build LLVM
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@main
         with:
-          clone-llvm: ${{ steps.define-branches.outputs.llvm-branch == '' && 'true' || 'false' }}
+          clone-llvm: ${{ (steps.define-branches.outputs.llvm-branch == '' && inputs.clone-llvm == 'true') && 'true' || 'false' }}
           enable-assertions: false
           build-type: 'Release'
           ccache-key: ${{ inputs.ccache-key }}
