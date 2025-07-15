@@ -11,6 +11,11 @@ on:
         type: string
         required: false
         description: 'LLVM revision to use.'
+      clone-llvm:
+        type: string
+        required: false
+        default: 'true'
+        description: 'Whether to clone LLVM repository. If set to `false`, it will use the LLVM repository from the compiler-tester submodule.'
       path:
         type: string
         required: false
@@ -93,6 +98,11 @@ jobs:
           ref: ${{ inputs.compiler-tester-ref || github.head_ref || '' }}
           submodules: recursive
 
+      - name: Checkout submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --force --depth=1 --recursive --checkout
+
       - name: Checkout LLVM
         if: inputs.llvm-ref != ''
         uses: actions/checkout@v4
@@ -131,7 +141,7 @@ jobs:
           enable-tests: true
           enable-assertions: true
           build-type: 'RelWithDebInfo'
-          clone-llvm: ${{ inputs.llvm-ref == '' && 'true' || 'false' }}
+          clone-llvm: ${{ (inputs.llvm-ref == '' && inputs.clone-llvm == 'true') && 'true' || 'false' }}
           ccache-key: ${{ inputs.ccache-key }}
           ccache-key-type: ${{ inputs.ccache-key-type }}
 

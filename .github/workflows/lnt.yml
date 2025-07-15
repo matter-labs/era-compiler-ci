@@ -179,7 +179,7 @@ jobs:
               MODES=("Y+M3B3" "Y+MzB3" "E+M3B3" "E+MzB3")
             fi
             for MODE in "${MODES[@]}"; do
-              for ENV in REVM EVMInterpreter; do
+              for ENV in EVMInterpreter; do
                 # Create a context file
                 echo "{
                   \"machine\": \"${DEV_MACHINE_PREFIX}llvm_evm_${TOOLCHAIN}_${MODE// /_}_${ENV}\",
@@ -255,7 +255,7 @@ jobs:
             TARGET=$(echo "$MAIN_MACHINE" | grep -o 'eravm\|evm' || echo "")
             MODE=$(echo "$MAIN_MACHINE" | grep -o 'Y+M3B3\|Y+MzB3\|E+MzB3_0\.[0-9]\+\|E+M3B3_0\.[0-9]\+\|E+M3B3\|E+MzB3\|Y+\|E+_0.8' || echo "")
             TOOLCHAIN=$(echo "$MAIN_MACHINE" | grep -o 'solc\|ir-llvm' || echo "")
-            ENVIRONMENT=$(echo "$MAIN_MACHINE" | grep -o 'EVMInterpreter\|REVM' || echo "")
+            ENVIRONMENT=$(echo "$MAIN_MACHINE" | grep -o 'EVMInterpreter' || echo "")
             if [[ -z "$ENVIRONMENT" ]]; then
               ENVIRONMENT="zk_evm"
             fi
