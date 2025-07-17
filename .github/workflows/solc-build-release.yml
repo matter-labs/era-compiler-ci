@@ -106,7 +106,7 @@ jobs:
             image: ${{ needs.setup.outputs.use-new-tools == 'true' && 'ghcr.io/matter-labs/zksync-llvm-runner:latest' || 'matterlabs/llvm_runner:ubuntu20-llvm17-latest' }}
             release-suffix: linux-arm64
           - name: Windows
-            runner: windows-2019-github-hosted-64core
+            runner: windows-2022-github-hosted-64core
             release-suffix: windows-amd64
     runs-on: ${{ matrix.runner }}
     container:
