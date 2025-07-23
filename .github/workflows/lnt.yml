@@ -83,6 +83,11 @@ jobs:
           ref: ${{ steps.define-branches.outputs.compiler-tester-branch }}
           submodules: recursive
 
+      - name: Checkout submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --force --depth=1 --recursive --checkout
+
       - name: Checkout LLVM
         if: steps.define-branches.outputs.llvm-branch != ''
         uses: actions/checkout@v4
