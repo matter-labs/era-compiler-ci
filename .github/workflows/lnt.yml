@@ -86,7 +86,7 @@ jobs:
       - name: Checkout submodules
         run: |
           git config --global --add safe.directory '*'
-          git submodule update --force --depth=1 --recursive --checkout
+          git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Checkout LLVM
         if: steps.define-branches.outputs.llvm-branch != ''
