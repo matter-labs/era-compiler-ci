@@ -8,8 +8,13 @@ on:
         type: string
         required: false
         default: "true"
-      solx-ref:
-        description: 'Specific `solx` ref to use for building `solx`.'
+      solx_candidate_branch:
+        description: 'Specific `solx` candidate ref to use for building `solx`.'
+        type: string
+        required: false
+        default: ''
+      solx_reference_branch:
+        description: 'Specific `solx` reference ref to use for building `solx`.'
         type: string
         required: false
         default: ''
@@ -70,8 +75,10 @@ jobs:
         run: |
           if [ "${{ matrix.type }}" = "candidate" ]; then
             echo "llvm-branch=${{ inputs.compiler_llvm_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+            echo "solx-branch=${{ inputs.solx_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
           else
             echo "llvm-branch=${{ inputs.compiler_llvm_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+            echo "solx-branch=${{ inputs.solx_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
           fi
 
       - name: Checkout source
@@ -79,7 +86,7 @@ jobs:
         with:
           repository: matter-labs/solx
           submodules: 'recursive'
-          ref: ${{ matrix.type == 'candidate' && inputs.solx-ref || '' }}
+          ref: ${{ steps.define-branches.outputs.solx-branch }}
 
       # This step is required to checkout submodules
       # that are disabled in .gitmodules config
@@ -99,13 +106,14 @@ jobs:
           ref: ${{ steps.define-branches.outputs.llvm-branch }}
 
       - name: Building solc
-        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@v1
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@aba-ref-can-rust-sum
         with:
           cmake-build-type: 'Release'
           working-dir: 'era-solidity'
+          upload-testing-binary: false
 
       - name: Build LLVM
-        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@v1
+        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@aba-ref-can-rust-sum
         with:
           clone-llvm: 'false'
           build-type: Release
@@ -113,7 +121,7 @@ jobs:
           ccache-key: ${{ format('llvm-{0}-{1}', runner.os, runner.arch) }}
 
       - name: Build solx
-        uses: matter-labs/era-compiler-ci/.github/actions/build-rust@v1
+        uses: matter-labs/era-compiler-ci/.github/actions/build-rust@aba-ref-can-rust-sum
         env:
           BOOST_PREFIX: ${{ github.workspace }}/era-solidity/boost/lib
           SOLC_PREFIX: ${{ github.workspace }}/era-solidity/build
@@ -136,7 +144,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-ref-can-rust-sum
           sparse-checkout: ${{ env.BENCHMARKS_TOML }}
 
       - name: Prepare projects
@@ -180,7 +188,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-ref-can-rust-sum
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
             forge-benchmarks/combine-gas-reports.py
@@ -193,6 +201,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: release*
+          merge-multiple: true
           path: .
 
       - name: Setup solx
@@ -202,7 +211,7 @@ jobs:
         run: |
           mkdir -p compilers
           cd compilers
-          mv ${GITHUB_WORKSPACE}/release-test-${{ matrix.type }}/test/solx* ${GITHUB_WORKSPACE}/compilers/solx
+          mv ${GITHUB_WORKSPACE}/test-${{ matrix.type }}/solx-test-${{ matrix.type }} ${GITHUB_WORKSPACE}/compilers/solx
           chmod a+x ./solx
           SOLX_VERSION=$(./solx --version | head -n 1)
           SOLX_SOLC_VERSION=$(./solx --version | tail -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
@@ -364,9 +373,10 @@ jobs:
 
                 # Convert gas JSON reports to benchmark converter format
                 for JSON in ${GAS_REPORTS}/*.json; do
-                  PROJECT="${JSON%%_*}"
+                  FILENAME="$(basename ${JSON})"
+                  PROJECT_NAME="${FILENAME%%_*}"
                   if jq empty "${JSON}" > /dev/null 2>&1 && [ -s "${JSON}" ]; then
-                    jq --arg project "${PROJECT}" --arg toolchain "${COMPILER}-${{ steps.solx.outputs.solc-base-version }}${VIA_IR_SUFFIX}" \
+                    jq --arg project "${PROJECT_NAME}" --arg toolchain "${COMPILER}-${{ steps.solx.outputs.solc-base-version }}${VIA_IR_SUFFIX}" \
                       '{data: ., project: $project, toolchain: $toolchain}' \
                       "${JSON}" > tmp.json
                     mv tmp.json "${JSON}"
@@ -402,7 +412,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-ref-can-rust-sum
           sparse-checkout: |
             forge-benchmarks/
 
@@ -454,7 +464,7 @@ jobs:
 
             solx: `${{ needs.test.outputs.solx-version}}`<br>
             llvm version: `${{ inputs.compiler_llvm_candidate_branch || 'main' }}`<br>
-            solx version: `${{ inputs.solx-ref || 'main' }}`
+            solx version: `${{ inputs.solx_candidate_branch || 'main' }}`
 
             The latest benchmark reports are ready for download and imported to Excel:
 
@@ -475,7 +485,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-ref-can-rust-sum
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
