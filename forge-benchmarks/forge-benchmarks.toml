@@ -61,13 +61,13 @@ description = "A set of modern, gas optimized staking pool contracts."
 # repo = "https://github.com/odyslam/foundry-upgrades"
 # description = "Helper smart contracts to deploy and manage upgradeable contracts."
 #
-[art-gobblers]
-repo = "https://github.com/antonbaliasnikov/art-gobblers"
-description = "A decentralized art factory and marketplace. Fork with fixed tests."
-
-[balance-snapshot]
-repo = "https://github.com/pilagod/balance-snapshot"
-description = "A Solidity library to improve balance change check in Foundry tests."
+# [art-gobblers]
+# repo = "https://github.com/antonbaliasnikov/art-gobblers"
+# description = "A decentralized art factory and marketplace. Fork with fixed tests."
+#
+# [balance-snapshot]
+# repo = "https://github.com/pilagod/balance-snapshot"
+# description = "A Solidity library to improve balance change check in Foundry tests."
 #
 # [diamond-foundry]
 # repo = "https://github.com/FydeTreasury/Diamond-Foundry"
