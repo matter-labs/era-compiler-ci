@@ -60,6 +60,9 @@ for (test, contract, function), values in sorted(data.items()):
 # Create a DataFrame
 df = pd.DataFrame(rows)
 
+# Drop rows with any missing values
+df.dropna(how='any', inplace=True)
+
 # Save to Excel
 output_file = "gas.xlsx"
 df.to_excel(output_file, index=True)

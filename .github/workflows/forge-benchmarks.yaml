@@ -3,11 +3,6 @@ name: Foundry tests
 on:
   workflow_call:
     inputs:
-      solx-version:
-        description: 'Prebuilt `solx` version to use. For example: `0.1.0` without `v` prefix. If empty, `solx` will be built.'
-        type: string
-        required: false
-        default: ''
       upload-reports:
         description: 'Upload reports to the PR.'
         type: string
@@ -18,11 +13,21 @@ on:
         type: string
         required: false
         default: ''
-      llvm-ref:
-        description: 'Specific LLVM ref to use for building `solx`.'
+      compiler_llvm_candidate_branch:
+        description: 'Specific LLVM candidate ref to use for building `solx`.'
         type: string
         required: false
         default: ''
+      compiler_llvm_reference_branch:
+        description: 'Specific LLVM reference ref to use building `solx`.'
+        type: string
+        required: false
+        default: ''
+      compiler-llvm-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-llvm'
+        description: 'Compiler LLVM repository to use. Required for forks testing.'
       print-markdown-tables:
         description: 'Report markdown tables to the PRs.'
         type: string
@@ -50,17 +55,31 @@ defaults:
 jobs:
 
   build-solx:
-    if: ${{ inputs.solx-version == '' }}
     runs-on: matterlabs-ci-runner-high-performance
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        type: ["reference", "candidate"]
     steps:
+
+      - name: Define branches
+        shell: bash -ex {0}
+        id: define-branches
+        run: |
+          if [ "${{ matrix.type }}" = "candidate" ]; then
+            echo "llvm-branch=${{ inputs.compiler_llvm_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+          else
+            echo "llvm-branch=${{ inputs.compiler_llvm_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
+          fi
+
       - name: Checkout source
         uses: actions/checkout@v4
         with:
           repository: matter-labs/solx
           submodules: 'recursive'
-          ref: ${{ inputs.solx-ref }}
+          ref: ${{ matrix.type == 'candidate' && inputs.solx-ref || '' }}
 
       # This step is required to checkout submodules
       # that are disabled in .gitmodules config
@@ -70,16 +89,14 @@ jobs:
           git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Remove llvm submodule
-        if: ${{ inputs.llvm-ref != '' }}
         run: rm -rf llvm
 
       - name: Checkout llvm
-        if: ${{ inputs.llvm-ref != '' }}
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/era-compiler-llvm
+          repository: ${{ inputs.compiler-llvm-repo }}
           path: llvm
-          ref: ${{ inputs.llvm-ref }}
+          ref: ${{ steps.define-branches.outputs.llvm-branch }}
 
       - name: Building solc
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@v1
@@ -103,7 +120,7 @@ jobs:
         with:
           exec_name: 'solx'
           target: 'x86_64-unknown-linux-gnu'
-          release-suffix: test
+          release-suffix: test-${{ matrix.type }}
 
   # Special job to separate projects by chunks
   # and execute chunks in parallel later.
@@ -145,9 +162,6 @@ jobs:
 
   test:
     needs: [build-solx, prepare-projects]
-    if: |
-      always() &&
-      (needs.build-solx.result == 'skipped' || needs.build-solx.result == 'success')
     runs-on: matterlabs-ci-runner-high-performance
     env:
       DEFAULT_ITERATIONS: 20
@@ -159,6 +173,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        type: ["reference", "candidate"]
         project: ${{ fromJSON(needs.prepare-projects.outputs.projects) }}
     steps:
       - name: Checkout
@@ -175,7 +190,6 @@ jobs:
           python-version: '3.13'
 
       - name: Download artifacts
-        if: ${{ needs.build-solx.result == 'success' }}
         uses: actions/download-artifact@v4
         with:
           pattern: release*
@@ -188,12 +202,7 @@ jobs:
         run: |
           mkdir -p compilers
           cd compilers
-          if [[ '${{ needs.build-solx.result }}' == 'success' ]]; then
-            mv ${GITHUB_WORKSPACE}/release-test/test/solx* ${GITHUB_WORKSPACE}/compilers/solx
-          else
-            wget "${SOLX_DOWNLOAD_URL}/${{ inputs.solx-version }}/solx-linux-amd64-gnu-v${{ inputs.solx-version }}"
-            mv ./solx-linux-amd64-gnu-v${{ inputs.solx-version }} ./solx
-          fi
+          mv ${GITHUB_WORKSPACE}/release-test-${{ matrix.type }}/test/solx* ${GITHUB_WORKSPACE}/compilers/solx
           chmod a+x ./solx
           SOLX_VERSION=$(./solx --version | head -n 1)
           SOLX_SOLC_VERSION=$(./solx --version | tail -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
@@ -353,6 +362,20 @@ jobs:
                 done
                 python ${GITHUB_WORKSPACE}/forge-benchmarks/combine-gas-reports.py "${GAS_REPORTS}" "${GAS_JSON}"
 
+                # Convert gas JSON reports to benchmark converter format
+                for JSON in ${GAS_REPORTS}/*.json; do
+                  PROJECT="${JSON%%_*}"
+                  if jq empty "${JSON}" > /dev/null 2>&1 && [ -s "${JSON}" ]; then
+                    jq --arg project "${PROJECT}" --arg toolchain "${COMPILER}-${{ steps.solx.outputs.solc-base-version }}${VIA_IR_SUFFIX}" \
+                      '{data: ., project: $project, toolchain: $toolchain}' \
+                      "${JSON}" > tmp.json
+                    mv tmp.json "${JSON}"
+                  else
+                    echo "Invalid gas JSON: ${JSON}"
+                    cat "${JSON}"
+                  fi
+                done
+
               done
             done
             # Clean-up environment variables for the project
@@ -364,10 +387,10 @@ jobs:
             )
           done
 
-      - name: Upload json
+      - name: Upload jsons
         uses: actions/upload-artifact@v4
         with:
-          name: results-${{ strategy.job-index }}
+          name: results-${{ matrix.type }}-${{ strategy.job-index }}
           path: 'sol*/'
 
   prepare-excel-reports:
@@ -387,7 +410,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: data
-          pattern: 'results*'
+          pattern: 'results-candidate*'
           merge-multiple: 'true'
 
       - name: Setup python
@@ -430,7 +453,7 @@ jobs:
             📊 **Excel Reports Available**
 
             solx: `${{ needs.test.outputs.solx-version}}`<br>
-            llvm version: `${{ inputs.llvm-ref || 'main' }}`<br>
+            llvm version: `${{ inputs.compiler_llvm_candidate_branch || 'main' }}`<br>
             solx version: `${{ inputs.solx-ref || 'main' }}`
 
             The latest benchmark reports are ready for download and imported to Excel:
@@ -459,7 +482,7 @@ jobs:
       - name: Download reports
         uses: actions/download-artifact@v4
         with:
-          pattern: 'results*'
+          pattern: 'results-candidate*'
           path: data
           merge-multiple: 'true'
 
