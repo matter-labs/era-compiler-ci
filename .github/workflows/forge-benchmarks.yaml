@@ -3,26 +3,31 @@ name: Foundry tests
 on:
   workflow_call:
     inputs:
-      solx-version:
-        description: 'Prebuilt `solx` version to use. For example: `0.1.0` without `v` prefix. If empty, `solx` will be built.'
-        type: string
-        required: false
-        default: ''
       upload-reports:
         description: 'Upload reports to the PR.'
         type: string
         required: false
         default: "true"
-      solx-ref:
-        description: 'Specific `solx` ref to use for building `solx`.'
+      solx_candidate_branch:
+        description: 'Specific `solx` candidate ref to use for building `solx`.'
         type: string
         required: false
         default: ''
-      llvm-ref:
-        description: 'Specific LLVM ref to use for building `solx`.'
+      solx_reference_branch:
+        description: 'Specific `solx` reference ref to use for building `solx`.'
         type: string
         required: false
         default: ''
+      compiler_llvm_candidate_branch:
+        description: 'Specific LLVM candidate ref to use for building `solx`.'
+        type: string
+        required: false
+        default: ''
+      compiler-llvm-repo:
+        type: string
+        required: false
+        default: 'matter-labs/era-compiler-llvm'
+        description: 'Compiler LLVM repository to use. Required for forks testing.'
       print-markdown-tables:
         description: 'Report markdown tables to the PRs.'
         type: string
@@ -50,17 +55,21 @@ defaults:
 jobs:
 
   build-solx:
-    if: ${{ inputs.solx-version == '' }}
     runs-on: matterlabs-ci-runner-high-performance
     container:
       image: ghcr.io/matter-labs/zksync-llvm-runner:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        type: ["reference", "candidate"]
     steps:
+
       - name: Checkout source
         uses: actions/checkout@v4
         with:
           repository: matter-labs/solx
           submodules: 'recursive'
-          ref: ${{ inputs.solx-ref }}
+          ref: ${{ matrix.type == 'candidate' && inputs.solx_candidate_branch || inputs.solx_reference_branch || '' }}
 
       # This step is required to checkout submodules
       # that are disabled in .gitmodules config
@@ -70,22 +79,23 @@ jobs:
           git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Remove llvm submodule
-        if: ${{ inputs.llvm-ref != '' }}
+        if: ${{ matrix.type == 'candidate' }}
         run: rm -rf llvm
 
       - name: Checkout llvm
-        if: ${{ inputs.llvm-ref != '' }}
+        if: ${{ matrix.type == 'candidate' }}
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/era-compiler-llvm
+          repository: ${{ inputs.compiler-llvm-repo }}
           path: llvm
-          ref: ${{ inputs.llvm-ref }}
+          ref: ${{ inputs.compiler_llvm_candidate_branch || '' }}
 
       - name: Building solc
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@v1
         with:
           cmake-build-type: 'Release'
           working-dir: 'era-solidity'
+          upload-testing-binary: false
 
       - name: Build LLVM
         uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@v1
@@ -103,7 +113,7 @@ jobs:
         with:
           exec_name: 'solx'
           target: 'x86_64-unknown-linux-gnu'
-          release-suffix: test
+          release-suffix: test-${{ matrix.type }}
 
   # Special job to separate projects by chunks
   # and execute chunks in parallel later.
@@ -145,17 +155,18 @@ jobs:
 
   test:
     needs: [build-solx, prepare-projects]
-    if: |
-      always() &&
-      (needs.build-solx.result == 'skipped' || needs.build-solx.result == 'success')
     runs-on: matterlabs-ci-runner-high-performance
     env:
       DEFAULT_ITERATIONS: 20
     outputs:
       solx-version: ${{ steps.solx.outputs.solx-version }}
+      solx-latest-release-version: ${{ steps.solx.outputs.solx-latest-release-version }}
+      solx-tot-version: ${{ steps.solx.outputs.solx-tot-version }}
       solx-llvm-version: ${{ steps.solx.outputs.solx-llvm-version }}
       solc-base-version: ${{ steps.solx.outputs.solc-base-version }}
       compilation_json: ${{ steps.tests.outputs.compilation_json }}
+      latest-release: ${{ steps.solx.outputs.latest-release }}
+      short-sha: ${{ steps.solx.outputs.short-sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -168,17 +179,12 @@ jobs:
           ref: v1
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
-            forge-benchmarks/combine-gas-reports.py
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
 
       - name: Download artifacts
-        if: ${{ needs.build-solx.result == 'success' }}
         uses: actions/download-artifact@v4
         with:
           pattern: release*
+          merge-multiple: true
           path: .
 
       - name: Setup solx
@@ -188,19 +194,33 @@ jobs:
         run: |
           mkdir -p compilers
           cd compilers
-          if [[ '${{ needs.build-solx.result }}' == 'success' ]]; then
-            mv ${GITHUB_WORKSPACE}/release-test/test/solx* ${GITHUB_WORKSPACE}/compilers/solx
-          else
-            wget "${SOLX_DOWNLOAD_URL}/${{ inputs.solx-version }}/solx-linux-amd64-gnu-v${{ inputs.solx-version }}"
-            mv ./solx-linux-amd64-gnu-v${{ inputs.solx-version }} ./solx
-          fi
-          chmod a+x ./solx
-          SOLX_VERSION=$(./solx --version | head -n 1)
-          SOLX_SOLC_VERSION=$(./solx --version | tail -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHORT_SHA="${SHA:0:7}"
+          mv ${GITHUB_WORKSPACE}/test-candidate/solx-test-candidate ${GITHUB_WORKSPACE}/compilers/solx-llvm.${SHORT_SHA}
+          mv ${GITHUB_WORKSPACE}/test-reference/solx-test-reference ${GITHUB_WORKSPACE}/compilers/solx-ToT
+          # Setup latest release solx
+          LATEST_RELEASE=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/matter-labs/solx/releases/latest \
+            | jq -r .tag_name)
+          wget "${SOLX_DOWNLOAD_URL}/${LATEST_RELEASE}/solx-linux-amd64-gnu-v${LATEST_RELEASE}"
+          mv ./solx-linux-amd64-gnu-v${LATEST_RELEASE} ./solx-${LATEST_RELEASE}
+          chmod a+x ./solx-llvm.${SHORT_SHA}
+          chmod a+x ./solx-ToT
+          chmod a+x ./solx-${LATEST_RELEASE}
+          SOLX_VERSION=$(./solx-llvm.${SHORT_SHA} --version | head -n 1)
+          SOLX_LATEST_RELEASE_VERSION=$(./solx-${LATEST_RELEASE} --version | head -n 1)
+          SOLX_TOT_VERSION=$(./solx-ToT --version | head -n 1)
+          SOLX_SOLC_VERSION=$(./solx-llvm.${SHORT_SHA} --version | tail -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           LLVM_VERSION=$(echo "${SOLX_VERSION}" | grep -oP "(?<=LLVM build: )[a-f0-9]{40}")
+          echo "short-sha=${SHORT_SHA}" >> ${GITHUB_OUTPUT}
           echo "solx-version=${SOLX_VERSION}" >> ${GITHUB_OUTPUT}
+          echo "solx-latest-release-version=${SOLX_LATEST_RELEASE_VERSION}" >> ${GITHUB_OUTPUT}
+          echo "solx-tot-version=${SOLX_TOT_VERSION}" >> ${GITHUB_OUTPUT}
           echo "solx-llvm-version=${LLVM_VERSION}" >> ${GITHUB_OUTPUT}
           echo "solc-base-version=${SOLX_SOLC_VERSION}" >> ${GITHUB_OUTPUT}
+          echo "latest-release=${LATEST_RELEASE}" >> ${GITHUB_OUTPUT}
 
       - name: Install foundry
         run: |
@@ -254,7 +274,7 @@ jobs:
               yq -oj ".${PROJECT}.env // {} | to_entries[]" "${TOML_CONFIG}" |
                 jq -r 'select(.key != null) | .key + "=" + (.value | tostring)'
             )
-            for COMPILER in solc solx; do
+            for COMPILER in solc solx-llvm.${{ steps.solx.outputs.short-sha }} solx-ToT solx-${{ steps.solx.outputs.latest-release }}; do
               for VIA_IR in true false; do
                 REPO=$(yq ".${PROJECT}.repo" "${TOML_CONFIG}")
                 if [ -d "${GITHUB_WORKSPACE}/projects/${PROJECT}" ]; then
@@ -281,21 +301,38 @@ jobs:
                 sed -i 's/solc.*/solc_version = "${{ steps.solx.outputs.solc-base-version }}"/' foundry.toml
                 sed -i 's/solc_version.*/solc_version = "${{ steps.solx.outputs.solc-base-version }}"/' foundry.toml
                 # Build project
-                [ ${COMPILER} == 'solx' ] && USE_SOLX="--use ${GITHUB_WORKSPACE}/compilers/solx" || USE_SOLX=""
-                [ ${VIA_IR} == 'true' ] && VIA_IR_SUFFIX="-via-ir" || VIA_IR_SUFFIX=""
+                [[ ${COMPILER} == *solx* ]] && USE_SOLX="--use ${GITHUB_WORKSPACE}/compilers/${COMPILER}" || USE_SOLX=""
+                [ ${VIA_IR} == 'true' ] && VIA_IR_SUFFIX="-viaIR" || VIA_IR_SUFFIX=""
                 [ ${VIA_IR} == 'true' ] && VIA_IR_OPTION="--via-ir" || VIA_IR_OPTION=""
                 mkdir -p ${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}
                 BUILD_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/build_${PROJECT}.json"
                 BUILD_SIZES_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/build_sizes_${PROJECT}.json"
 
                 start_ms=$(date +%s%3N)
-                forge build --force ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_JSON} 2>&1 || true
+                forge build --optimize --force ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_JSON} 2>&1 || true
                 end_ms=$(date +%s%3N)
                 elapsed_ms=$(( end_ms - start_ms ))
                 COMPILE_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
 
                 # Get build size report
-                forge build --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>&1 || true
+                forge build --optimize --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>&1 || true
+
+                if [[ ${COMPILER} == *solx* ]]; then
+                  TOOLCHAIN="${COMPILER}${VIA_IR_SUFFIX}"
+                else
+                  TOOLCHAIN="${COMPILER}-${{ steps.solx.outputs.solc-base-version }}${VIA_IR_SUFFIX}"
+                fi
+
+                sed -i '/Error: some contracts exceed the runtime size limit/d' "${BUILD_SIZES_JSON}"
+                if jq empty "${BUILD_SIZES_JSON}" > /dev/null 2>&1 && [ -s "${BUILD_SIZES_JSON}" ]; then
+                  jq --arg project "${PROJECT}" --arg toolchain "${TOOLCHAIN}" \
+                    '{data: ., project: $project, toolchain: $toolchain}' \
+                    "${BUILD_SIZES_JSON}" > tmp.json
+                  mv tmp.json "${BUILD_SIZES_JSON}"
+                else
+                  echo "Invalid gas JSON: ${BUILD_SIZES_JSON}"
+                  cat "${BUILD_SIZES_JSON}"
+                fi
 
                 if jq empty "${BUILD_JSON}" > /dev/null 2>&1 && [ -s "${BUILD_JSON}" ]; then
                   jq --arg k "compile_time" --argjson v "${COMPILE_TIME}" '. + {($k): $v}' "${BUILD_JSON}" > tmp.json
@@ -336,7 +373,7 @@ jobs:
                 TEST_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/test_${PROJECT}.json"
                 GAS_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/${PROJECT}.json"
                 start_ms=$(date +%s%3N)
-                forge test ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
+                forge test --optimize ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
                 end_ms=$(date +%s%3N)
                 elapsed_ms=$(( end_ms - start_ms ))
                 RUN_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
@@ -349,9 +386,26 @@ jobs:
                 ITERATIONS=$(yq ".${PROJECT}.run_iterations // ${DEFAULT_ITERATIONS}" "${TOML_CONFIG}")
                 for ITER in $(seq "${ITERATIONS}"); do
                   GAS_JSON_ITER="${GAS_REPORTS}/${PROJECT}_${ITER}.json"
-                  forge test --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
+                  forge test --optimize --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
                 done
-                python ${GITHUB_WORKSPACE}/forge-benchmarks/combine-gas-reports.py "${GAS_REPORTS}" "${GAS_JSON}"
+
+                # Convert gas JSON reports to benchmark converter format
+                for JSON in ${GAS_REPORTS}/*.json; do
+                  if [[ ${COMPILER} == *solx* ]]; then
+                    TOOLCHAIN="${COMPILER}${VIA_IR_SUFFIX}"
+                  else
+                    TOOLCHAIN="${COMPILER}-${{ steps.solx.outputs.solc-base-version }}${VIA_IR_SUFFIX}"
+                  fi
+                  if jq empty "${JSON}" > /dev/null 2>&1 && [ -s "${JSON}" ]; then
+                    jq --arg project "${PROJECT}" --arg toolchain "${TOOLCHAIN}" \
+                      '{data: ., project: $project, toolchain: $toolchain}' \
+                      "${JSON}" > tmp.json
+                    mv tmp.json "${JSON}"
+                  else
+                    echo "Invalid gas JSON: ${JSON}"
+                    cat "${JSON}"
+                  fi
+                done
 
               done
             done
@@ -364,295 +418,66 @@ jobs:
             )
           done
 
-      - name: Upload json
+      - name: Export matrix projects
+        id: projects
+        run: |
+          PROJECTS="${{ matrix.project }}"
+          echo "projects=${PROJECTS// /_}" >> ${GITHUB_OUTPUT}
+
+      - name: Upload jsons
         uses: actions/upload-artifact@v4
         with:
-          name: results-${{ strategy.job-index }}
+          name: results-${{ steps.projects.outputs.projects }}
           path: 'sol*/'
 
-  prepare-excel-reports:
+
+  excel-reports:
     if: ${{ inputs.excel-reports == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: matterlabs-ci-runner-high-performance
+    container:
+      image: ghcr.io/matter-labs/zksync-llvm-runner:latest
     needs: test
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: matter-labs/era-compiler-ci
-          ref: v1
-          sparse-checkout: |
-            forge-benchmarks/
-
       - name: Download reports
         uses: actions/download-artifact@v4
         with:
           path: data
-          pattern: 'results*'
-          merge-multiple: 'true'
+          pattern: 'results-*'
+          merge-multiple: 'false'
 
-      - name: Setup python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install openpyxl pandas
-
-      - name: Clean-up sizes files
+      - name: Clean-up files
         working-directory: data
         run: |
-          find . -type f -name 'build_sizes*' -exec sed -i '/Error: some contracts exceed the runtime size limit/d' {} +
+          find . -type f -name 'build_*.json' ! -name 'build_sizes*.json' -delete
+          find . -type f -name 'test_*.json' -delete
+          find .
 
-      - name: Prepare Excel reports
-        working-directory: data
+      - name: Install benchmark-converter
         run: |
-          python ${GITHUB_WORKSPACE}/forge-benchmarks/gas.py
-          python ${GITHUB_WORKSPACE}/forge-benchmarks/codesize.py
-          python ${GITHUB_WORKSPACE}/forge-benchmarks/compile-time.py
+          cargo install benchmark-analyzer --bin benchmark-converter \
+            --git https://github.com/matter-labs/era-compiler-tester
+
+      - name: Run benchmark converter
+        run: benchmark-converter --output-path benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx ./data
 
       - name: Upload Excel reports
         id: excel-reports
         uses: actions/upload-artifact@v4
         with:
           name: excel-reports
-          path: |
-            data/gas.xlsx
-            data/codesize.xlsx
-            data/compile-time.xlsx
+          path: benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx
 
       - name: Add PR comment with excel reports link
         uses: mshick/add-pr-comment@v2
         with:
           message-id: 'excel-reports'
           message: |
-            📊 **Excel Reports Available**
+            📊 **Excel Report Available**
 
-            solx: `${{ needs.test.outputs.solx-version}}`<br>
-            llvm version: `${{ inputs.llvm-ref || 'main' }}`<br>
-            solx version: `${{ inputs.solx-ref || 'main' }}`
+            Benchmarks measured for:
+            * solx candidate version: `${{ needs.test.outputs.solx-version }}`
+            * solx ToT version: `${{ needs.test.outputs.solx-tot-version }}`
+            * solx latest release version: `${{ needs.test.outputs.solx-latest-release-version }}`
+            * solc version: `${{ needs.test.outputs.solc-base-version }}`
 
-            The latest benchmark reports are ready for download and imported to Excel:
-
-            ➡️ [**Download Excel Reports**](${{ steps.excel-reports.outputs.artifact-url }})
-
-            _Includes:_
-            - `gas.xlsx`
-            - `codesize.xlsx`
-            - `compile-time.xlsx`
-
-
-  prepare-compatibility-table:
-    if: ${{ inputs.print-markdown-tables == 'true' }}
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: matter-labs/era-compiler-ci
-          ref: v1
-          sparse-checkout: |
-            forge-benchmarks/forge-benchmarks.toml
-
-      - name: Download reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: 'results*'
-          path: data
-          merge-multiple: 'true'
-
-      - name: Prepare compatibility table
-        run: |
-          echo "| Project     | Mode     | Compiled / Total       | Passed / Total         |" > report.md
-          echo "|-------------|----------|------------------------|------------------------|" >> report.md
-
-          PROJECTS=$(yq '. as $root | keys[]' forge-benchmarks/forge-benchmarks.toml | tr '\n' ' ')
-          for PROJECT in ${PROJECTS}; do
-            for MODE in "default" "viaIR"; do
-              if [ "${MODE}" = "default" ]; then
-                JSON="data/solx/build_${PROJECT}.json"
-                RUN_JSON="data/solx/test_${PROJECT}.json"
-                RUN_REF_JSON="data/solc/test_${PROJECT}.json"
-              else
-                JSON="data/solx-via-ir/build_${PROJECT}.json"
-                RUN_JSON="data/solx-via-ir/test_${PROJECT}.json"
-                RUN_REF_JSON="data/solc-via-ir/test_${PROJECT}.json"
-              fi
-
-              TEST_TOTAL=0
-              TEST_PASSED=0
-              if jq empty "${RUN_JSON}" > /dev/null 2>&1 && [ -s "${RUN_JSON}" ]; then
-                TEST_RESULTS_JSON=$(
-                jq '
-                  reduce to_entries[] as $contract (
-                    {total: 0, success: 0};
-                    reduce ($contract.value.test_results | to_entries)[] as $test (
-                      .;
-                      .total += 1 |
-                      .success += (if $test.value.status == "Success" then 1 else 0 end)
-                    )
-                  )' "${RUN_JSON}"
-                )
-                REF_TEST_RESULTS_JSON=$(
-                jq '
-                  reduce to_entries[] as $contract (
-                    {total: 0, success: 0};
-                    reduce ($contract.value.test_results | to_entries)[] as $test (
-                      .;
-                      .total += 1 |
-                      .success += (if $test.value.status == "Success" then 1 else 0 end)
-                    )
-                  )' "${RUN_REF_JSON}"
-                )
-                # Take number of successful tests from solc as total
-                TEST_TOTAL=$(echo "${REF_TEST_RESULTS_JSON}" | jq -r '.success')
-                TEST_PASSED=$(echo "${TEST_RESULTS_JSON}" | jq -r '.success')
-              fi
-
-              if [ ! -s "$JSON" ]; then
-                echo "No data for ${PROJECT} [$MODE]"
-                continue
-              fi
-
-              TOTAL=0
-              PASSED=0
-              if jq empty "${JSON}" > /dev/null 2>&1 && [ -s "${JSON}" ]; then
-                if [[ "${RUN_TIME}" == null ]]; then RUN_TIME=0; fi
-                TOTAL=$(jq -r '.build_infos[0].source_id_to_path | length' "$JSON")
-                FAILURES=$(jq -r '[.errors[] | select(.type == "Error")] | length' "$JSON")
-                PASSED=$((TOTAL - FAILURES))
-              fi
-
-              # Generate compile bar
-              COMPILE_BAR=""
-              COMPILE_PERCENT=0
-              if [[ "$TOTAL" -gt 0 ]]; then
-                COMPILE_PERCENT=$((PASSED * 100 / TOTAL))
-              fi
-              FILLED=$(( COMPILE_PERCENT / 10 ))
-              for i in $(seq 1 10); do
-                [ "$i" -le "$FILLED" ] && COMPILE_BAR+="🟩" || COMPILE_BAR+="⬜"
-              done
-
-              # Generate test bar
-              TEST_BAR=""
-              TEST_PERCENT=0
-              if [[ "$TEST_TOTAL" -gt 0 ]]; then
-                TEST_PERCENT=$((TEST_PASSED * 100 / TEST_TOTAL))
-              fi
-              FILLED=$(( TEST_PERCENT / 10 ))
-              for i in $(seq 1 10); do
-                [ "$i" -le "$FILLED" ] && TEST_BAR+="🟩" || TEST_BAR+="⬜"
-              done
-              if [[ "$TEST_TOTAL" -eq 0 ]]; then
-                TEST_BAR="🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩"
-              fi
-              TEST_COLUMN=$(printf "%-10s %4d / %4d" "${TEST_BAR}" "${TEST_PASSED}" "${TEST_TOTAL}")
-
-              if [ "$MODE" = "default" ]; then
-                printf "| %-11s | %-8s | %-10s %4d / %4d | %s |\n" \
-                  "${PROJECT}" "${MODE}" "${COMPILE_BAR}" "${PASSED}" "${TOTAL}" "${TEST_COLUMN}" >> report.md
-              else
-                printf "| %-11s | %-8s | %-10s %4d / %4d | %s |\n" \
-                  "" "${MODE}" "${COMPILE_BAR}" "${PASSED}" "${TOTAL}" "${TEST_COLUMN}" >> report.md
-              fi
-            done
-          done
-
-      - name: Prepare compilation and run time table
-        run: |
-          echo "| Project     | Mode     | Compile (solx/solc/Δs/Δ%)  | Run (solx/solc/Δs/Δ%)  | Size warnings (solx/solc) |" > time_report.md
-          echo "|-------------|----------|----------------------------|------------------------|---------------------------|" >> time_report.md
-
-          PROJECTS=$(yq '. as $root | keys[]' forge-benchmarks/forge-benchmarks.toml | tr '\n' ' ')
-          for PROJECT in ${PROJECTS}; do
-            for MODE in "default" "viaIR"; do
-              [ "${MODE}" = "viaIR" ] && SUFFIX="-via-ir" || SUFFIX=""
-              JSON="data/solx${SUFFIX}/build_${PROJECT}.json"
-              REF_JSON="data/solc${SUFFIX}/build_${PROJECT}.json"
-
-              if [ ! -s "$JSON" ] || [ ! -s "$REF_JSON" ]; then
-                echo "No data for ${PROJECT} [$MODE]"
-                continue
-              fi
-
-              if ! (jq empty "${JSON}" > /dev/null 2>&1 && [ -s "${JSON}" ]); then
-                echo "Invalid JSON for ${PROJECT} [${MODE}]: ${JSON}"
-                continue
-              fi
-
-              # Bytecode size exceeds limit
-              BYTECODE_WARN_SOLX=$(jq '[.errors[] | select(.errorCode == "5574" or .errorCode == "3860")] | length' "${JSON}")
-              BYTECODE_WARN_SOLC=$(jq '[.errors[] | select(.errorCode == "5574" or .errorCode == "3860")] | length' "${REF_JSON}")
-              BYTECODE_COLUMN=$(printf "%d / %d" "${BYTECODE_WARN_SOLX}" "${BYTECODE_WARN_SOLC}")
-
-              COMPILE_SOLX=$(jq -r '.compile_time // 0' "${JSON}")
-              COMPILE_SOLC=$(jq -r '.compile_time // 0' "${REF_JSON}")
-              RUN_SOLX=$(jq -r '.exec_time // 0' "${JSON}")
-              RUN_SOLC=$(jq -r '.exec_time // 0' "${REF_JSON}")
-
-              # Compute differences
-              COMPILE_DIFF=$(awk "BEGIN { printf \"%.2f\", ${COMPILE_SOLX} - ${COMPILE_SOLC} }")
-              COMPILE_PCT=$(awk "BEGIN {
-                if (${COMPILE_SOLC} == 0) print \"∞\";
-                else printf \"%+.0f%%\", ((${COMPILE_SOLX} - ${COMPILE_SOLC}) / ${COMPILE_SOLC}) * 100
-              }")
-
-              RUN_DIFF=$(awk "BEGIN { printf \"%.2f\", ${RUN_SOLX} - ${RUN_SOLC} }")
-              RUN_PCT=$(awk "BEGIN {
-                if (${RUN_SOLC} == 0) print \"∞\";
-                else printf \"%+.0f%%\", ((${RUN_SOLX} - ${RUN_SOLC}) / ${RUN_SOLC}) * 100
-              }")
-
-              # Compile emoji
-              COMPILE_EMOJI=$(awk "BEGIN {
-                diff = ${COMPILE_SOLX} - ${COMPILE_SOLC};
-                pct = ((${COMPILE_SOLC} > 0) ? (diff / ${COMPILE_SOLC}) * 100 : 0);
-                if (pct > 5) print \"📈\";
-                else if (pct < -5) print \"📉\";
-                else print \"➖\";
-              }")
-
-              # Run emoji
-              RUN_EMOJI=$(awk "BEGIN {
-                diff = ${RUN_SOLX} - ${RUN_SOLC};
-                pct = ((${RUN_SOLC} > 0) ? (diff / ${RUN_SOLC}) * 100 : 0);
-                if (pct > 5) print \"📈\";
-                else if (pct < -5) print \"📉\";
-                else print \"➖\";
-              }")
-
-              COMPILE_COLUMN=$(printf "%.2fs / %.2fs / %+0.2fs / %s %s" "$COMPILE_SOLX" "$COMPILE_SOLC" "$COMPILE_DIFF" "$COMPILE_PCT" "$COMPILE_EMOJI")
-              RUN_COLUMN=$(printf "%.2fs / %.2fs / %+0.2fs / %s %s" "$RUN_SOLX" "$RUN_SOLC" "$RUN_DIFF" "$RUN_PCT" "$RUN_EMOJI")
-
-              if [ "$MODE" = "default" ]; then
-                printf "| %-11s | %-8s | %-28s | %-24s | %-27s |\n" \
-                  "${PROJECT}" "${MODE}" "${COMPILE_COLUMN}" "${RUN_COLUMN}" "${BYTECODE_COLUMN}" >> time_report.md
-              else
-                printf "| %-11s | %-8s | %-28s | %-24s | %-27s |\n" \
-                  "" "${MODE}" "${COMPILE_COLUMN}" "${RUN_COLUMN}" "${BYTECODE_COLUMN}" >> time_report.md
-              fi
-            done
-          done
-
-      - name: Update job summary
-        run: cat report.md >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Update job summary with time report
-        run: cat time_report.md >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Upload report
-        if: ${{ inputs.upload-reports == 'true' }}
-        uses: mshick/add-pr-comment@v2
-        with:
-          message-path: report.md
-          message-id: 'compatibility-matrix'
-
-      - name: Upload time report
-        if: ${{ inputs.upload-reports == 'true' }}
-        uses: mshick/add-pr-comment@v2
-        with:
-          message-path: time_report.md
-          message-id: 'time-report-table'
+            ➡️ [**Download Excel Report**](${{ steps.excel-reports.outputs.artifact-url }})
