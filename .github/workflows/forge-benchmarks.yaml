@@ -23,11 +23,6 @@ on:
         type: string
         required: false
         default: ''
-      compiler_llvm_reference_branch:
-        description: 'Specific LLVM reference ref to use building `solx`.'
-        type: string
-        required: false
-        default: ''
       compiler-llvm-repo:
         type: string
         required: false
@@ -69,24 +64,12 @@ jobs:
         type: ["reference", "candidate"]
     steps:
 
-      - name: Define branches
-        shell: bash -ex {0}
-        id: define-branches
-        run: |
-          if [ "${{ matrix.type }}" = "candidate" ]; then
-            echo "llvm-branch=${{ inputs.compiler_llvm_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
-            echo "solx-branch=${{ inputs.solx_candidate_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
-          else
-            echo "llvm-branch=${{ inputs.compiler_llvm_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
-            echo "solx-branch=${{ inputs.solx_reference_branch || '' }}" | tee -a "${GITHUB_OUTPUT}"
-          fi
-
       - name: Checkout source
         uses: actions/checkout@v4
         with:
           repository: matter-labs/solx
           submodules: 'recursive'
-          ref: ${{ steps.define-branches.outputs.solx-branch }}
+          ref: ${{ matrix.type == 'candidate' && inputs.solx_candidate_branch || inputs.solx_reference_branch || '' }}
 
       # This step is required to checkout submodules
       # that are disabled in .gitmodules config
@@ -96,24 +79,26 @@ jobs:
           git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Remove llvm submodule
+        if: ${{ matrix.type == 'candidate' }}
         run: rm -rf llvm
 
       - name: Checkout llvm
+        if: ${{ matrix.type == 'candidate' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.compiler-llvm-repo }}
           path: llvm
-          ref: ${{ steps.define-branches.outputs.llvm-branch }}
+          ref: ${{ inputs.compiler_llvm_candidate_branch || '' }}
 
       - name: Building solc
-        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@aba-ref-can-rust-sum
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@v1
         with:
           cmake-build-type: 'Release'
           working-dir: 'era-solidity'
           upload-testing-binary: false
 
       - name: Build LLVM
-        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@aba-ref-can-rust-sum
+        uses: matter-labs/era-compiler-ci/.github/actions/build-llvm@v1
         with:
           clone-llvm: 'false'
           build-type: Release
@@ -121,7 +106,7 @@ jobs:
           ccache-key: ${{ format('llvm-{0}-{1}', runner.os, runner.arch) }}
 
       - name: Build solx
-        uses: matter-labs/era-compiler-ci/.github/actions/build-rust@aba-ref-can-rust-sum
+        uses: matter-labs/era-compiler-ci/.github/actions/build-rust@v1
         env:
           BOOST_PREFIX: ${{ github.workspace }}/era-solidity/boost/lib
           SOLC_PREFIX: ${{ github.workspace }}/era-solidity/build
@@ -144,7 +129,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: aba-ref-can-rust-sum
+          ref: v1
           sparse-checkout: ${{ env.BENCHMARKS_TOML }}
 
       - name: Prepare projects
@@ -170,7 +155,7 @@ jobs:
 
   test:
     needs: [build-solx, prepare-projects]
-    runs-on: matterlabs-ci-runner-ultra-performance
+    runs-on: matterlabs-ci-runner-high-performance
     env:
       DEFAULT_ITERATIONS: 20
     outputs:
@@ -191,7 +176,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: aba-ref-can-rust-sum
+          ref: v1
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
@@ -403,7 +388,6 @@ jobs:
                   GAS_JSON_ITER="${GAS_REPORTS}/${PROJECT}_${ITER}.json"
                   forge test --optimize --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
                 done
-                # python ${GITHUB_WORKSPACE}/forge-benchmarks/combine-gas-reports.py "${GAS_REPORTS}" "${GAS_JSON}"
 
                 # Convert gas JSON reports to benchmark converter format
                 for JSON in ${GAS_REPORTS}/*.json; do
@@ -471,18 +455,17 @@ jobs:
       - name: Install benchmark-converter
         run: |
           cargo install benchmark-analyzer --bin benchmark-converter \
-            --git https://github.com/matter-labs/era-compiler-tester \
-            --branch az-support-xslx-benchmark-reports
+            --git https://github.com/matter-labs/era-compiler-tester
 
       - name: Run benchmark converter
-        run: benchmark-converter --output-path excel.xlsx ./data
+        run: benchmark-converter --output-path benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx ./data
 
       - name: Upload Excel reports
         id: excel-reports
         uses: actions/upload-artifact@v4
         with:
           name: excel-reports
-          path: excel.xlsx
+          path: benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx
 
       - name: Add PR comment with excel reports link
         uses: mshick/add-pr-comment@v2

@@ -108,3 +108,15 @@ repo = "https://github.com/aave-dao/aave-v3-origin"
 description = "A non-custodial liquidity protocol on Ethereum."
 requires_yarn = true
 run_iterations = 5 # Aave v3 is a large project
+
+[seaport]
+repo = "https://github.com/ProjectOpenSea/seaport"
+description = "A marketplace protocol for safely and efficiently buying and selling NFTs."
+category = "huge"
+disabled = true # compilation hangs, required to disable fuzzing tests
+
+[lens]
+repo = "https://github.com/lens-protocol/core"
+description = "Lens protocol, non-custodial social graph."
+category = "huge"
+disabled = true # compilation is too long
