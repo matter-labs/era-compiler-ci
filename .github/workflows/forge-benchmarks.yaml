@@ -315,7 +315,7 @@ jobs:
                 COMPILE_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
 
                 # Get build size report
-                forge build --optimize --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>&1 || true
+                forge build --optimize --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>/dev/null || true
 
                 if [[ ${COMPILER} == *solx* ]]; then
                   TOOLCHAIN="${COMPILER}${VIA_IR_SUFFIX}"
