@@ -18,6 +18,11 @@ on:
         type: string
         required: false
         default: ''
+      solx-repo:
+        type: string
+        required: false
+        default: 'matter-labs/solx'
+        description: 'Solx repository to use. Required for forks testing.'
       compiler_llvm_candidate_branch:
         description: 'Specific LLVM candidate ref to use for building `solx`.'
         type: string
@@ -67,7 +72,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
         with:
-          repository: matter-labs/solx
+          repository: ${{ inputs.solx-repo }}
           submodules: 'recursive'
           ref: ${{ matrix.type == 'candidate' && inputs.solx_candidate_branch || inputs.solx_reference_branch || '' }}
 
@@ -79,11 +84,11 @@ jobs:
           git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Remove llvm submodule
-        if: ${{ matrix.type == 'candidate' }}
+        if: ${{ contains(github.repository, 'era-compiler-llvm') && matrix.type == 'candidate' }}
         run: rm -rf llvm
 
       - name: Checkout llvm
-        if: ${{ matrix.type == 'candidate' }}
+        if: ${{ contains(github.repository, 'era-compiler-llvm') && matrix.type == 'candidate' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.compiler-llvm-repo }}
@@ -129,7 +134,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: common-solx-forge
           sparse-checkout: ${{ env.BENCHMARKS_TOML }}
 
       - name: Prepare projects
@@ -176,7 +181,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: common-solx-forge
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
@@ -356,6 +361,18 @@ jobs:
                     ' "${BUILD_JSON}"
                 fi
 
+                # Check if there are any errors in src/ directory, we should not run the tests then
+                if jq -e '
+                  has("errors") and
+                  (.errors | type == "array") and
+                  (.errors[]? |
+                    .severity == "error" and
+                    (.sourceLocation.file? | type == "string" and startswith("src/"))
+                  )' "${BUILD_JSON}" > /dev/null; then
+                  echo "⏭️ Skipping ${BUILD_JSON} due to error in src/"
+                  continue
+                fi
+
                 COMPILE_ONLY=$(yq ".${PROJECT}.compile_only" "${TOML_CONFIG}")
                 if [[ "${COMPILE_ONLY}" == "true" ]]; then
                   echo "Skipping tests for ${PROJECT} as compile_only is set to true"
@@ -379,6 +396,20 @@ jobs:
                 RUN_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
                 jq --arg k "exec_time" --argjson v "${RUN_TIME}" '. + {($k): $v}' "${BUILD_JSON}" > tmp.json
                 mv tmp.json "${BUILD_JSON}"
+
+                # Report runtime failures if any
+                if jq -e '
+                  to_entries | map(.value.test_results | to_entries | map(select(.value.status == "Failure"))) | flatten | length > 0
+                  ' "${TEST_JSON}" > /dev/null; then
+                    echo "❌ Failing Tests:"
+                    jq -r '
+                      to_entries[] as $contract |
+                      $contract.value.test_results
+                      | to_entries[]
+                      | select(.value.status == "Failure")
+                      | "❌ Test: \($contract.key) / \(.key)\n   🔹 Reason: \(.value.reason // "No reason provided")\n-----------------------------"
+                    ' "${TEST_JSON}"
+                fi
 
                 GAS_REPORTS="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/${PROJECT}-gas-reports"
                 mkdir -p "${GAS_REPORTS}"
