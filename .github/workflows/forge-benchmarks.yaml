@@ -28,6 +28,11 @@ on:
         type: string
         required: false
         default: ''
+      compiler_llvm_reference_branch:
+        description: 'Specific LLVM reference ref to use for building `solx`.'
+        type: string
+        required: false
+        default: 'main'
       compiler-llvm-repo:
         type: string
         required: false
@@ -84,16 +89,16 @@ jobs:
           git submodule update --init --force --depth=1 --recursive --checkout
 
       - name: Remove llvm submodule
-        if: ${{ contains(github.repository, 'era-compiler-llvm') && matrix.type == 'candidate' }}
+        if: ${{ contains(github.repository, 'era-compiler-llvm') }}
         run: rm -rf llvm
 
       - name: Checkout llvm
-        if: ${{ contains(github.repository, 'era-compiler-llvm') && matrix.type == 'candidate' }}
+        if: ${{ contains(github.repository, 'era-compiler-llvm') }}
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.compiler-llvm-repo }}
           path: llvm
-          ref: ${{ inputs.compiler_llvm_candidate_branch || '' }}
+          ref: ${{ matrix.type == 'candidate' && inputs.compiler_llvm_candidate_branch || inputs.compiler_llvm_reference_branch }}
 
       - name: Building solc
         uses: matter-labs/era-compiler-ci/.github/actions/build-solc@v1
@@ -134,7 +139,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: common-solx-forge
+          ref: v1
           sparse-checkout: ${{ env.BENCHMARKS_TOML }}
 
       - name: Prepare projects
@@ -162,7 +167,7 @@ jobs:
     needs: [build-solx, prepare-projects]
     runs-on: matterlabs-ci-runner-high-performance
     env:
-      DEFAULT_ITERATIONS: 5
+      DEFAULT_ITERATIONS: 10
     outputs:
       solx-version: ${{ steps.solx.outputs.solx-version }}
       solx-latest-release-version: ${{ steps.solx.outputs.solx-latest-release-version }}
@@ -181,7 +186,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: common-solx-forge
+          ref: v1
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
@@ -477,7 +482,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: common-solx-forge
+          ref: v1
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
