@@ -17,7 +17,6 @@
 [openzeppelin]
 repo = "https://github.com/OpenZeppelin/openzeppelin-contracts"
 description = "A library for secure smart contract development."
-run_iterations = 5 # OpenZeppelin is a large project, so we run fewer iterations
 
 [lil-web3]
 repo = "https://github.com/m1guelpf/lil-web3"
@@ -35,7 +34,6 @@ requires_yarn = true
 [lido-core]
 repo = "https://github.com/lidofinance/core"
 description = "Lido DAO smart contracts"
-run_iterations = 5 # the project is large
 disabled = true # written in Solidity v0.4
 
 [rollcall]
@@ -135,10 +133,8 @@ requires_yarn = true
 repo = "https://github.com/morpho-org/morpho-blue"
 description = "Morpho Blue Protocol"
 requires_yarn = true
-run_iterations = 5 # the project is large
 
 [aave-v3]
 repo = "https://github.com/aave-dao/aave-v3-origin"
 description = "A non-custodial liquidity protocol on Ethereum."
 requires_yarn = true
-run_iterations = 5 # the project is large

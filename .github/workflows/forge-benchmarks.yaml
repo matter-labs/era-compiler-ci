@@ -139,7 +139,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-check-iterations
           sparse-checkout: ${{ env.BENCHMARKS_TOML }}
 
       - name: Prepare projects
@@ -167,7 +167,7 @@ jobs:
     needs: [build-solx, prepare-projects]
     runs-on: matterlabs-ci-runner-high-performance
     env:
-      DEFAULT_ITERATIONS: 10
+      DEFAULT_ITERATIONS: 1
     outputs:
       solx-version: ${{ steps.solx.outputs.solx-version }}
       solx-latest-release-version: ${{ steps.solx.outputs.solx-latest-release-version }}
@@ -186,7 +186,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-check-iterations
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
@@ -482,7 +482,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: matter-labs/era-compiler-ci
-          ref: v1
+          ref: aba-check-iterations
           sparse-checkout: |
             forge-benchmarks/forge-benchmarks.toml
 
