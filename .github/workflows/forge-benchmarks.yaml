@@ -168,6 +168,8 @@ jobs:
     runs-on: matterlabs-ci-runner-high-performance
     env:
       DEFAULT_ITERATIONS: 1
+      FOUNDRY_INVARIANT_RUNS: 0
+      FOUNDRY_INVARIANT_DEPTH: 0
     outputs:
       solx-version: ${{ steps.solx.outputs.solx-version }}
       solx-latest-release-version: ${{ steps.solx.outputs.solx-latest-release-version }}
@@ -388,18 +390,19 @@ jobs:
                   continue
                 fi
 
-                FAILED_TESTS_TO_SKIP=$(jq -r '.errors[] | select(.type == "Error") | .sourceLocation.file' ${BUILD_JSON} | sed -E 's/:([^ ]+)//g')
+                #FAILED_TESTS_TO_SKIP=$(jq -r '.errors[] | select(.type == "Error") | .sourceLocation.file' ${BUILD_JSON} | sed -E 's/:([^ ]+)//g')
                 # Run tests
-                DEFAULT_SKIP=$(yq '.profile.default.skip[]' foundry.toml)
-                if [[ -n "${DEFAULT_SKIP}" ]] || [[ -n "${FAILED_TESTS_TO_SKIP}" ]]; then
-                  SKIP_TESTS="--skip ${DEFAULT_SKIP} ${FAILED_TESTS_TO_SKIP}"
-                else
-                  SKIP_TESTS=""
-                fi
+                #DEFAULT_SKIP=$(yq '.profile.default.skip[]' foundry.toml)
+                #if [[ -n "${DEFAULT_SKIP}" ]] || [[ -n "${FAILED_TESTS_TO_SKIP}" ]]; then
+                #  SKIP_TESTS="--skip ${DEFAULT_SKIP} ${FAILED_TESTS_TO_SKIP}"
+                #else
+                #  SKIP_TESTS=""
+                #fi
+
                 TEST_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/test_${PROJECT}.json"
                 GAS_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/${PROJECT}.json"
                 start_ms=$(date +%s%3N)
-                forge test --optimize --fuzz-runs=0 ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
+                forge test --optimize --fuzz-runs=0 --fuzz-seed=0xdeadbeef ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
                 end_ms=$(date +%s%3N)
                 elapsed_ms=$(( end_ms - start_ms ))
                 RUN_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
@@ -426,7 +429,7 @@ jobs:
                 ITERATIONS=$(yq ".${PROJECT}.run_iterations // ${DEFAULT_ITERATIONS}" "${TOML_CONFIG}")
                 for ITER in $(seq "${ITERATIONS}"); do
                   GAS_JSON_ITER="${GAS_REPORTS}/${PROJECT}_${ITER}.json"
-                  forge test --optimize --fuzz-runs=0 --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
+                  forge test --optimize --fuzz-runs=0 --fuzz-seed=0xdeadbeef --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
                 done
 
                 # Convert gas JSON reports to benchmark converter format
