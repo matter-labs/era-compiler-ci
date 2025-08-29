@@ -151,7 +151,7 @@ runs:
         fi
 
         if [ ${{ inputs.enable-mlir }} = 'true' ]; then
-          MLIR_FLAGS="-DMLIR_DIR=${PWD}/../target-llvm/build-final/lib/cmake/mlir -DLLD_DIR=${PWD}/../target-llvm/build-final/lib/cmake/lld"
+          MLIR_FLAGS="-DMLIR_DIR=${PWD}/target-llvm/build-final/lib/cmake/mlir -DLLD_DIR=${PWD}/target-llvm/build-final/lib/cmake/lld"
         fi
 
         mkdir -p ./build
