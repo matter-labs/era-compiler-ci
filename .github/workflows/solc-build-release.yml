@@ -2,6 +2,12 @@ name: Solc build and release
 
 on:
   workflow_call:
+    inputs:
+      enable-mlir:
+        type: string
+        description: 'Enable MLIR.'
+        required: false
+        default: 'false'
 
 concurrency:
   group: ${{ github.repository_id }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -121,10 +127,10 @@ jobs:
 
       - name: Prepare Windows env
         if: runner.os == 'Windows'
-        uses: matter-labs/era-compiler-ci/.github/actions/prepare-msys@main
+        uses: matter-labs/era-compiler-ci/.github/actions/prepare-msys@solc-latest
 
       - name: Building the Solidity compiler
-        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@main
+        uses: matter-labs/era-compiler-ci/.github/actions/build-solc@solc-latest
         with:
           release-suffix: ${{ matrix.release-suffix }}
           zksync-version: ${{ needs.setup.outputs.zksync-version }}
@@ -132,6 +138,7 @@ jobs:
           boost-version: ${{ needs.setup.outputs.use-new-tools == 'true' && '1.83.0' || '1.71.0' }}
           use-gcc: ${{ needs.setup.outputs.use-gcc }}
           use-windows-clang: ${{ needs.setup.outputs.use-windows-clang }}
+          enable-mlir: ${{ inputs.enable-mlir }}
 
   release:
     runs-on: ubuntu-latest
