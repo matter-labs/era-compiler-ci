@@ -324,13 +324,13 @@ jobs:
                 BUILD_SIZES_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/build_sizes_${PROJECT}.json"
 
                 start_ms=$(date +%s%3N)
-                forge build --optimize --force ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_JSON} 2>/dev/null || true
+                forge build --optimize --no-metadata --force ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_JSON} 2>/dev/null || true
                 end_ms=$(date +%s%3N)
                 elapsed_ms=$(( end_ms - start_ms ))
                 COMPILE_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
 
                 # Get build size report
-                forge build --optimize --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>/dev/null || true
+                forge build --optimize --no-metadata --sizes ${USE_SOLX} ${VIA_IR_OPTION} --json > ${BUILD_SIZES_JSON} 2>/dev/null || true
 
                 if [[ ${COMPILER} == *solx* ]]; then
                   TOOLCHAIN="${COMPILER}${VIA_IR_SUFFIX}"
