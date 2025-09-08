@@ -396,7 +396,7 @@ jobs:
                 TEST_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/test_${PROJECT}.json"
                 GAS_JSON="${GITHUB_WORKSPACE}/${COMPILER}${VIA_IR_SUFFIX}/${PROJECT}.json"
                 start_ms=$(date +%s%3N)
-                forge test --optimize --fuzz-runs=0 --fuzz-seed=0xdeadbeef ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
+                forge test --optimize --no-metadata --fuzz-runs=0 --fuzz-seed=0xdeadbeef ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${TEST_JSON}" 2>/dev/null || true
                 end_ms=$(date +%s%3N)
                 elapsed_ms=$(( end_ms - start_ms ))
                 RUN_TIME=$(awk -v ms="${elapsed_ms}" 'BEGIN { printf "%.3f\n", ms / 1000 }')
@@ -423,7 +423,7 @@ jobs:
                 ITERATIONS=$(yq ".${PROJECT}.run_iterations // ${DEFAULT_ITERATIONS}" "${TOML_CONFIG}")
                 for ITER in $(seq "${ITERATIONS}"); do
                   GAS_JSON_ITER="${GAS_REPORTS}/${PROJECT}_${ITER}.json"
-                  forge test --optimize --fuzz-runs=0 --fuzz-seed=0xdeadbeef --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
+                  forge test --optimize --no-metadata --fuzz-runs=0 --fuzz-seed=0xdeadbeef --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
                 done
 
                 # Convert gas JSON reports to benchmark converter format
