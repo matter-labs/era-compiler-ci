@@ -426,6 +426,9 @@ jobs:
                   forge test --optimize --no-metadata --fuzz-runs=0 --fuzz-seed=0xdeadbeef --gas-report ${VIA_IR_OPTION} --json ${USE_SOLX} ${DEFAULT_SKIP_TESTS} ${SKIP_TESTS} >"${GAS_JSON_ITER}" 2>/dev/null || true
                 done
 
+                # Strip all errors in stdout
+                sed -i '/ERROR/d' "${GAS_JSON_ITER}"
+
                 # Convert gas JSON reports to benchmark converter format
                 for JSON in ${GAS_REPORTS}/*.json; do
                   if [[ ${COMPILER} == *solx* ]]; then
