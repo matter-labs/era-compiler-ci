@@ -719,7 +719,7 @@ jobs:
       - name: Install benchmark-converter
         run: |
           cargo install benchmark-analyzer --bin benchmark-converter \
-            --git https://github.com/matter-labs/era-compiler-tester
+            --git https://github.com/matter-labs/era-compiler-tester --branch az-support-compiler-tester-benchmarks-with-xlsx
 
       - name: Run benchmark converter
         run: benchmark-converter --output-path benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx ./data
