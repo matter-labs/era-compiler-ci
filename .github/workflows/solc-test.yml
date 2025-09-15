@@ -234,6 +234,7 @@ jobs:
       custom-solc-run-id: ${{ github.run_id }}
       custom-solc-version: ${{ needs.build.outputs.solc-version }}
       extra-args: --mode "${{ github.base_ref }}"
+      clone-llvm: 'false'
 
 
   # Benchmarks workflow call from the era-compiler-ci repository
