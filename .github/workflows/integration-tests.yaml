@@ -132,6 +132,15 @@ jobs:
           run-id: ${{ inputs.custom-solc-run-id }}
           merge-multiple: true
 
+      - name: Download prebuilt boost
+        if: inputs.target-machine == 'evm' && inputs.toolchain == 'ir-llvm' && inputs.custom-solc-run-id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: boost-${{ inputs.custom-solc-version }}-candidate-*
+          path: ./era-solidity/boost/
+          run-id: ${{ inputs.custom-solc-run-id }}
+          merge-multiple: true
+
       # An issue prevents to correctly use the same version of composite actions from `workflow_call`
       # https://github.com/actions/toolkit/issues/1264
       # for now, it will always be taken from the latest main
