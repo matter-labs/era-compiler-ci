@@ -753,7 +753,7 @@ jobs:
             --git https://github.com/matter-labs/era-compiler-tester
 
       - name: Run benchmark converter
-        run: benchmark-converter --output-path benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx ./data
+        run: benchmark-converter --input-source tooling --output-path benchmarks-llvm.${{ needs.test.outputs.short-sha }}.xlsx ./data
 
       - name: Upload Excel reports
         id: excel-reports

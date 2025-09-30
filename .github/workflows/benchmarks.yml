@@ -100,6 +100,9 @@ jobs:
     env:
       BOOST_PREFIX: ${{ github.workspace }}/era-solidity/boost/lib
       SOLC_PREFIX: ${{ github.workspace }}/era-solidity/build
+    outputs:
+      compiler-tester-branch: ${{ steps.define-branches.outputs.compiler-tester-branch }}
+      llvm-branch: ${{ steps.define-branches.outputs.llvm-branch }}
     steps:
       - name: Define branches
         shell: bash -ex {0}
@@ -269,24 +272,35 @@ jobs:
           pattern: compiler-llvm-${{ inputs.target-machine }}*
           merge-multiple: true
 
-      - name: Comparing the LLVM framework benchmark results
-        run: |
-          cargo run --release --bin benchmark-analyzer -- \
-            --reference ${{ inputs.target-machine }}-reference-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
-            --candidate ${{ inputs.target-machine }}-candidate-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
-            --output-file result.txt
+      - name: Install benchmark-converter
+        run: cargo build --bin benchmark-converter --release
 
-      - name: Posting the LLVM benchmark results to the summary
+      - name: Run benchmark converter
         run: |
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
-          echo 'Results for: ${{ inputs.target-machine }} ${{ inputs.toolchain }} ${{ inputs.environment }}' | tee -a $GITHUB_STEP_SUMMARY
-          cat result.txt | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
-          cat $GITHUB_STEP_SUMMARY > result.txt
+          cat ${{ inputs.target-machine }}-reference-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
+            | jq '{data: ., project: "compiler-tester", toolchain: "reference"}' > reference.json
+          cat ${{ inputs.target-machine }}-candidate-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
+            | jq '{data: ., project: "compiler-tester", toolchain: "candidate"}' > candidate.json
+          ./target/release/benchmark-converter --input-source compiler-tester --benchmark-format xlsx \
+            --output-path compiler-tester.xlsx reference.json candidate.json
 
-      - name: Posting the LLVM benchmark results to a PR comment
-        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+      - name: Upload Excel reports
+        id: compiler-tester-excel-reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-reports-${{ inputs.target-machine }}
+          path: compiler-tester.xlsx
+
+      - name: Add PR comment with excel reports link
         uses: mshick/add-pr-comment@v2
         with:
-          message-path: result.txt
-          message-id: '${{ inputs.target-machine }}-${{ inputs.toolchain }}-${{ inputs.environment }}'
+          message-id: 'excel-reports-${{ inputs.target-machine }}'
+          message: |
+            📊 **${{ inputs.target-machine }} compiler-tester excel report**
+
+            Benchmarks measured for:
+            * target machine: `${{ inputs.target-machine }}`
+            * toolchain: `${{ inputs.toolchain }}`
+            * environment: `${{ inputs.environment }}`
+
+            ➡️ [**Download Excel Report**](${{ steps.compiler-tester-excel-reports.outputs.artifact-url }})
