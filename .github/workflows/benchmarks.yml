@@ -278,9 +278,9 @@ jobs:
       - name: Run benchmark converter
         run: |
           cat ${{ inputs.target-machine }}-reference-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
-            | jq '{data: ., project: "compiler-tester", toolchain: "reference"}' > reference.json
+            | jq '{data: ., project: "compiler-tester", toolchain: "reference", target: "${{ inputs.target-machine }}"}' > reference.json
           cat ${{ inputs.target-machine }}-candidate-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
-            | jq '{data: ., project: "compiler-tester", toolchain: "candidate"}' > candidate.json
+            | jq '{data: ., project: "compiler-tester", toolchain: "candidate", target: "${{ inputs.target-machine }}"}' > candidate.json
           ./target/release/benchmark-converter --input-source compiler-tester --benchmark-format xlsx \
             --output-path compiler-tester.xlsx reference.json candidate.json
 
