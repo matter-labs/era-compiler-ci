@@ -498,6 +498,11 @@ jobs:
 
           PROJECTS=$(yq '. as $root | keys[]' ${BENCHMARKS_TOML} | tr '\n' ' ')
           for PROJECT in ${PROJECTS}; do
+            DISABLED=$(yq ".${PROJECT}.disabled" "${TOML_CONFIG}")
+            if [[ "${DISABLED}" == "true" ]]; then
+              echo "Skipping ${PROJECT} as it is disabled"
+              continue
+            fi
             for MODE in "default" "viaIR"; do
               if [ "${MODE}" = "default" ]; then
                 JSON="data/solx-llvm.${{ needs.test.outputs.short-sha }}/build_${PROJECT}.json"
@@ -627,6 +632,11 @@ jobs:
 
           PROJECTS=$(yq '. as $root | keys[]' ${BENCHMARKS_TOML} | tr '\n' ' ')
           for PROJECT in ${PROJECTS}; do
+            DISABLED=$(yq ".${PROJECT}.disabled" "${TOML_CONFIG}")
+            if [[ "${DISABLED}" == "true" ]]; then
+              echo "Skipping ${PROJECT} as it is disabled"
+              continue
+            fi
             # TODO: skip cicada for now as solc can't compile it
             if [[ "${PROJECT}" == "cicada" ]]; then
               echo "Skipping ${PROJECT} as it is not supported by solc"
