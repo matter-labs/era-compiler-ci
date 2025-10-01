@@ -759,7 +759,7 @@ jobs:
 
       - name: Install benchmark-converter
         run: |
-          cargo install benchmark-analyzer --bin benchmark-converter \
+          cargo install benchmark-converter \
             --git https://github.com/matter-labs/era-compiler-tester
 
       - name: Run benchmark converter

@@ -282,7 +282,7 @@ jobs:
           cat ${{ inputs.target-machine }}-candidate-${{ inputs.toolchain }}-${{ inputs.environment }}.json \
             | jq '{data: ., project: "compiler-tester", toolchain: "candidate"}' > candidate.json
           ./target/release/benchmark-converter --input-source compiler-tester --benchmark-format xlsx \
-            --output-path compiler-tester.xlsx reference.json candidate.json
+            --target "${{ inputs.target-machine }}" --output-path compiler-tester.xlsx reference.json candidate.json
 
       - name: Upload Excel reports
         id: compiler-tester-excel-reports
@@ -304,3 +304,4 @@ jobs:
             * environment: `${{ inputs.environment }}`
 
             ➡️ [**Download Excel Report**](${{ steps.compiler-tester-excel-reports.outputs.artifact-url }})
+
