@@ -498,7 +498,7 @@ jobs:
 
           PROJECTS=$(yq '. as $root | keys[]' ${BENCHMARKS_TOML} | tr '\n' ' ')
           for PROJECT in ${PROJECTS}; do
-            DISABLED=$(yq ".${PROJECT}.disabled" "${TOML_CONFIG}")
+            DISABLED=$(yq ".${PROJECT}.disabled" "${BENCHMARKS_TOML}")
             if [[ "${DISABLED}" == "true" ]]; then
               echo "Skipping ${PROJECT} as it is disabled"
               continue
@@ -632,7 +632,7 @@ jobs:
 
           PROJECTS=$(yq '. as $root | keys[]' ${BENCHMARKS_TOML} | tr '\n' ' ')
           for PROJECT in ${PROJECTS}; do
-            DISABLED=$(yq ".${PROJECT}.disabled" "${TOML_CONFIG}")
+            DISABLED=$(yq ".${PROJECT}.disabled" "${BENCHMARKS_TOML}")
             if [[ "${DISABLED}" == "true" ]]; then
               echo "Skipping ${PROJECT} as it is disabled"
               continue
